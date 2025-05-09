@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Patient extends Model
 {
-    use HasFactory;
+    use SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -19,7 +21,7 @@ class Patient extends Model
         'room_number',
         'ward_type',
         'attending_physician',
-        'qr_code'
+        'remarks'
     ];
 
     /**
@@ -30,31 +32,29 @@ class Patient extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
     ];
 
     /**
-     * Generate a unique QR code URL for the patient
+     * Ward type validation rules.
      *
-     * @return string
+     * @var array<string>
      */
-    public function getQrUrlAttribute()
-    {
-        return url("/patient/{$this->id}");
-    }
-
-    /**
-     * Get the patient's admission record
-     */
-    public function admission()
-    {
-        return $this->hasOne(Admission::class)->latest();
-    }
+    public static $wardTypes = ['ward', 'semi-private', 'private'];
 
     /**
      * Get all admissions for the patient
      */
-    public function admissions()
+    public function admissions(): HasMany
     {
         return $this->hasMany(Admission::class);
+    }
+
+    /**
+     * Get the active admission for the patient
+     */
+    public function activeAdmission(): HasOne
+    {
+        return $this->hasOne(Admission::class)->where('status', 'active');
     }
 }

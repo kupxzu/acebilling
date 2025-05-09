@@ -22,3 +22,7 @@ Route::middleware(['auth', 'role:admitting'])->group(function () {
     Route::post('/patients', [PatientController::class, 'store']);
     Route::get('/patients/{patient}/qr', [PatientController::class, 'generateQR']);
 });
+
+Route::middleware(['auth:sanctum'])->group(function () {
+    Route::get('/patients', [PatientController::class, 'index']);
+});

@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Admission extends Model
 {
-    use HasFactory, SoftDeletes;
+    use SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -35,22 +36,43 @@ class Admission extends Model
         'admission_date' => 'datetime',
         'discharge_date' => 'datetime',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
     ];
 
     /**
      * Get the patient that owns the admission.
      */
-    public function patient()
+    public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
     }
 
     /**
-     * Scope a query to only include active admissions.
+     * Get the billings associated with the admission.
      */
-    public function scopeActive($query)
+    public function billings(): HasMany
     {
-        return $query->whereNull('discharge_date');
+        return $this->hasMany(Billing::class);
+    }
+
+    /**
+     * Get the total pending bill amount for the admission.
+     */
+    public function getTotalBillAttribute(): float
+    {
+        return $this->billings()
+            ->where('status', 'pending')
+            ->sum('amount');
+    }
+
+    /**
+     * Get the total paid amount for the admission.
+     */
+    public function getPaidAmountAttribute(): float
+    {
+        return $this->billings()
+            ->where('status', 'paid')
+            ->sum('amount');
     }
 }
