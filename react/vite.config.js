@@ -14,7 +14,7 @@ export default defineConfig({
         target: 'http://billing.test',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+        rewrite: (path) => path
       }
     }
   }

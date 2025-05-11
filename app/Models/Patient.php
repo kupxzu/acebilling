@@ -57,4 +57,12 @@ class Patient extends Model
     {
         return $this->hasOne(Admission::class)->where('status', 'active');
     }
+
+    /**
+     * Get all portal access records for the patient
+     */
+    public function portalAccess(): HasMany
+    {
+        return $this->hasMany(PortalAccess::class);
+    }
 }

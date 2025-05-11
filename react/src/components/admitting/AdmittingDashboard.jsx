@@ -11,12 +11,12 @@ import {
   Title,
   Tooltip,
   Legend,
-  Filler // Add this import
+  Filler
 } from 'chart.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import axiosClient from '../../utils/axios';
-import { Link } from 'react-router-dom'; // Add import
+import { Link } from 'react-router-dom';
 
 ChartJS.register(
   CategoryScale,
@@ -27,7 +27,7 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler // Register the Filler plugin
+  Filler
 );
 
 const formatDate = (dateString) => {
@@ -110,7 +110,7 @@ const AdmittingDashboard = () => {
       }
     }
   });
-  const [timeRange, setTimeRange] = useState('week'); // Add this state
+  const [timeRange, setTimeRange] = useState('week');
 
   useEffect(() => {
     fetchDashboardData();
@@ -120,107 +120,119 @@ const AdmittingDashboard = () => {
     setLoading(true);
     setError(null);
     try {
+      // Based on your backend controller, the correct endpoint is /stats
       const response = await axiosClient.get('/dashboard/stats');
-      const { data } = response.data;
       
-      setStats({
-        totalPatients: data.totalPatients || 0,
-        activeAdmissions: data.activeAdmissions || 0,
-        dischargedPatients: data.dischargedPatients || 0
-      });
-
-      setChartData(prevState => ({
-        ...prevState,
-        admissions: {
-          labels: data.admissionTrend?.map(item => 
-            new Date(item.date).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric' 
-            })
-          ) || [],
-          datasets: [{
-            label: 'Daily Admissions',
-            data: data.admissionTrend?.map(item => item.count) || [],
-            borderColor: 'rgb(99, 102, 241)',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            tension: 0.3,
-            fill: true
-          }]
-        },
-        wardDistribution: {
-          labels: ['Private', 'Semi-Private', 'Ward'],
-          datasets: [{
-            data: [
-              data.wardDistribution?.private || 0,
-              data.wardDistribution?.semiPrivate || 0,
-              data.wardDistribution?.ward || 0
-            ],
-            backgroundColor: [
-              'rgba(59, 130, 246, 0.8)',
-              'rgba(99, 102, 241, 0.8)',
-              'rgba(139, 92, 246, 0.8)'
-            ]
-          }]
-        },
-        patientTrend: {
-          week: {
-            labels: data.patientTrend?.weekly?.map(item => {
-              const date = formatDate(item.date);
-              return date ? date.toLocaleDateString('en-US', { weekday: 'short' }) : '';
-            }) || [],
-            datasets: [{
-              label: 'Weekly Patients',
-              data: data.patientTrend?.weekly?.map(item => item.count) || [],
-              borderColor: 'rgb(16, 185, 129)',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              tension: 0.3,
-              fill: true
-            }]
-          },
-          month: {
-            labels: data.patientTrend?.monthly?.map(item => {
-              const date = formatDate(item.date);
-              return date ? date.toLocaleDateString('en-US', { 
-                month: 'short',
-                day: 'numeric'
-              }) : '';
-            }) || [],
-            datasets: [{
-              label: 'Monthly Patients',
-              data: data.patientTrend?.monthly?.map(item => item.count) || [],
-              borderColor: 'rgb(99, 102, 241)',
-              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-              tension: 0.3,
-              fill: true
-            }]
-          },
-          year: {
-            labels: data.patientTrend?.yearly?.map(item => {
-              const date = formatDate(item.date);
-              return date ? date.toLocaleDateString('en-US', { 
-                month: 'short',
-                year: 'numeric'
-              }) : '';
-            }) || [],
-            datasets: [{
-              label: 'Yearly Patients',
-              data: data.patientTrend?.yearly?.map(item => item.count) || [],
-              borderColor: 'rgb(244, 63, 94)',
-              backgroundColor: 'rgba(244, 63, 94, 0.1)',
-              tension: 0.3,
-              fill: true
-            }]
-          }
-        }
-      }));
-
-      setRecentPatients(data.recentPatients || []);
+      if (response.data.status) {
+        const { data } = response.data;
+        processData(data);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch dashboard stats');
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again later.');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Process data function to handle API response
+  const processData = (data) => {
+    // Set stats data
+    setStats({
+      totalPatients: data.totalPatients || 0,
+      activeAdmissions: data.activeAdmissions || 0,
+      dischargedPatients: data.dischargedPatients || 0
+    });
+
+    // Process chart data
+    setChartData(prevState => ({
+      ...prevState,
+      admissions: {
+        labels: data.admissionTrend?.map(item => 
+          new Date(item.date).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric' 
+          })
+        ) || [],
+        datasets: [{
+          label: 'Daily Admissions',
+          data: data.admissionTrend?.map(item => item.count) || [],
+          borderColor: 'rgb(99, 102, 241)',
+          backgroundColor: 'rgba(99, 102, 241, 0.1)',
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      wardDistribution: {
+        labels: ['Private', 'Semi-Private', 'Ward'],
+        datasets: [{
+          data: [
+            data.wardDistribution?.private || 0,
+            data.wardDistribution?.semiPrivate || 0,
+            data.wardDistribution?.ward || 0
+          ],
+          backgroundColor: [
+            'rgba(59, 130, 246, 0.8)',
+            'rgba(99, 102, 241, 0.8)',
+            'rgba(139, 92, 246, 0.8)'
+          ]
+        }]
+      },
+      patientTrend: {
+        week: {
+          labels: data.patientTrend?.weekly?.map(item => {
+            const date = formatDate(item.date);
+            return date ? date.toLocaleDateString('en-US', { weekday: 'short' }) : '';
+          }) || [],
+          datasets: [{
+            label: 'Weekly Patients',
+            data: data.patientTrend?.weekly?.map(item => item.count) || [],
+            borderColor: 'rgb(16, 185, 129)',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        month: {
+          labels: data.patientTrend?.monthly?.map(item => {
+            const date = formatDate(item.date);
+            return date ? date.toLocaleDateString('en-US', { 
+              month: 'short',
+              day: 'numeric'
+            }) : '';
+          }) || [],
+          datasets: [{
+            label: 'Monthly Patients',
+            data: data.patientTrend?.monthly?.map(item => item.count) || [],
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        year: {
+          labels: data.patientTrend?.yearly?.map(item => {
+            const date = formatDate(item.date);
+            return date ? date.toLocaleDateString('en-US', { 
+              month: 'short'
+            }) : '';
+          }) || [],
+          datasets: [{
+            label: 'Yearly Patients',
+            data: data.patientTrend?.yearly?.map(item => item.count) || [],
+            borderColor: 'rgb(244, 63, 94)',
+            backgroundColor: 'rgba(244, 63, 94, 0.1)',
+            tension: 0.3,
+            fill: true
+          }]
+        }
+      }
+    }));
+
+    // Set recent patients data
+    setRecentPatients(data.recentPatients || []);
   };
 
   return (
@@ -231,8 +243,8 @@ const AdmittingDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900">Admitting Dashboard</h1>
           
           {error && (
-            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+              <span className="block sm:inline">{error}</span>
               <button 
                 className="ml-4 text-sm underline" 
                 onClick={fetchDashboardData}
@@ -437,7 +449,7 @@ const AdmittingDashboard = () => {
                           </div>
                           <div className="flex items-center">
                             <span className="text-sm text-gray-500 mr-4">
-                              {formatDate(patient.admission_date)?.toLocaleDateString() || 'N/A'}
+                              {patient.admission_date ? new Date(patient.admission_date).toLocaleDateString() : 'N/A'}
                             </span>
                             <svg
                               className="h-5 w-5 text-gray-400"

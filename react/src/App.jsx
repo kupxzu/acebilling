@@ -12,102 +12,128 @@ import ProgressBill from './components/billing/ProgressBill';
 import PatientBills from './components/billing/PatientBills';
 import Charges from './components/billing/Charges';
 import Reports from './components/billing/Reports';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import PatientPortal from './components/portal/PatientPortal';
+
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route
-          path="/billing"
-          element={
-            <ProtectedRoute allowedRole="billing">
-              <BillingDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admitting"
-          element={
-            <ProtectedRoute allowedRole="admitting">
-              <AdmittingDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admitting/new-patient"
-          element={
-            <ProtectedRoute allowedRole="admitting">
-              <PatientAdmission />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admitting/patients"
-          element={
-            <ProtectedRoute allowedRole="admitting">
-              <PatientList />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admitting/patients/:id"
-          element={
-            <ProtectedRoute allowedRole="admitting">
-              <EditPatient />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admitting/patients/:id/view"
-          element={
-            <ProtectedRoute allowedRole="admitting">
-              <ViewPatient />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/billing/soa/:id"
-          element={
-            <ProtectedRoute allowedRole="billing">
-              <StatementOfAccount />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/billing/progress/:id"
-          element={
-            <ProtectedRoute allowedRole="billing">
-              <ProgressBill />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/billing/patients"
-          element={
-            <ProtectedRoute allowedRole="billing">
-              <PatientBills />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/billing/charges"
-          element={
-            <ProtectedRoute allowedRole="billing">
-              <Charges />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/billing/reports"
-          element={
-            <ProtectedRoute allowedRole="billing">
-              <Reports />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </Router>
+    <>
+      <ToastContainer 
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+      <RouterProvider
+        router={createBrowserRouter([
+          {
+            path: '/',
+            element: <Login />,
+          },
+          {
+            path: '/billing',
+            element: (
+              <ProtectedRoute allowedRole="billing">
+                <BillingDashboard />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/admitting',
+            element: (
+              <ProtectedRoute allowedRole="admitting">
+                <AdmittingDashboard />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/admitting/new-patient',
+            element: (
+              <ProtectedRoute allowedRole="admitting">
+                <PatientAdmission />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/admitting/patients',
+            element: (
+              <ProtectedRoute allowedRole="admitting">
+                <PatientList />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/admitting/patients/:id',
+            element: (
+              <ProtectedRoute allowedRole="admitting">
+                <EditPatient />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/admitting/patients/:id/view',
+            element: (
+              <ProtectedRoute allowedRole="admitting">
+                <ViewPatient />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/billing/soa/:id',
+            element: (
+              <ProtectedRoute allowedRole="billing">
+                <StatementOfAccount />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/billing/progress/:id',
+            element: (
+              <ProtectedRoute allowedRole="billing">
+                <ProgressBill />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/billing/patients',
+            element: (
+              <ProtectedRoute allowedRole="billing">
+                <PatientBills />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/billing/charges',
+            element: (
+              <ProtectedRoute allowedRole="billing">
+                <Charges />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/billing/reports',
+            element: (
+              <ProtectedRoute allowedRole="billing">
+                <Reports />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: '/p/:hash',
+            element: <PatientPortal />
+          },
+        ])}
+      />
+    </>
   );
 }
 

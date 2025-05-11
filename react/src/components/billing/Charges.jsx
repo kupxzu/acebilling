@@ -19,17 +19,68 @@ const Charges = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('pending');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [perPage] = useState(10);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     useEffect(() => {
         fetchActivePatients();
     }, []);
 
-    const fetchActivePatients = async () => {
+    const fetchActivePatients = async (pageNumber = 1) => {
         try {
-            const response = await axiosClient.get('/billing/active-patients');
-            setPatients(response.data.data);
+            setLoading(true);
+            const response = await axiosClient.get('/billing/active-patients', {
+                params: {
+                    page: pageNumber,
+                    per_page: perPage,
+                    search: searchTerm
+                }
+            });
+
+            // Check if response has the expected structure
+            if (!response.data || !response.data.data || !response.data.meta) {
+                throw new Error('Invalid response format from server');
+            }
+
+            if (pageNumber === 1) {
+                setPatients(response.data.data);
+            } else {
+                setPatients(prev => [...prev, ...response.data.data]);
+            }
+
+            // Check if meta data exists before accessing
+            if (response.data.meta) {
+                setTotalPages(response.data.meta.last_page || 1);
+                setPage(response.data.meta.current_page || pageNumber);
+            }
+
+            setError('');
         } catch (err) {
-            setError('Failed to fetch patients');
+            console.error('Fetch error:', err);
+            setError('Failed to fetch patients. Please try again.');
+            setTotalPages(1);
+            setPatients([]);
+        } finally {
+            setLoading(false);
+            setIsLoadingMore(false);
+        }
+    };
+
+    useEffect(() => {
+        const debounceTimer = setTimeout(() => {
+            setPage(1);
+            fetchActivePatients(1);
+        }, 300);
+
+        return () => clearTimeout(debounceTimer);
+    }, [searchTerm]);
+
+    const loadMore = () => {
+        if (page < totalPages && !isLoadingMore) {
+            setIsLoadingMore(true);
+            fetchActivePatients(page + 1);
         }
     };
 
@@ -226,12 +277,20 @@ const Charges = () => {
                             />
                         </div>
 
-                        <div className="overflow-y-auto max-h-[400px]">
-                            {loading ? (
+                        <div 
+                            className="overflow-y-auto max-h-[400px]"
+                            onScroll={(e) => {
+                                const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+                                if (scrollHeight - scrollTop <= clientHeight * 1.5) {
+                                    loadMore();
+                                }
+                            }}
+                        >
+                            {loading && page === 1 ? (
                                 <Skeleton count={5} height={40} className="mb-2" />
                             ) : (
                                 <div className="space-y-2">
-                                    {filteredPatients.map((patient) => (
+                                    {patients.map((patient) => (
                                         <button
                                             key={patient.id}
                                             onClick={() => handlePatientSelect(patient)}
@@ -255,10 +314,25 @@ const Charges = () => {
                                         </button>
                                     ))}
 
-                                    {filteredPatients.length === 0 && (
+                                    {isLoadingMore && (
+                                        <div className="py-2">
+                                            <Skeleton count={1} height={40} className="mb-2" />
+                                        </div>
+                                    )}
+
+                                    {patients.length === 0 && (
                                         <div className="text-center py-4 text-gray-500">
                                             No patients found
                                         </div>
+                                    )}
+
+                                    {!loading && !isLoadingMore && page < totalPages && (
+                                        <button
+                                            onClick={loadMore}
+                                            className="w-full py-2 text-sm text-indigo-600 hover:text-indigo-500"
+                                        >
+                                            Load more...
+                                        </button>
                                     )}
                                 </div>
                             )}

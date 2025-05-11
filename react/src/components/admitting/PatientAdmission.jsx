@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../Navbar';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
+import { toast } from 'react-toastify'; // Make sure you have this package installed
 
-// Add this new component for form field skeleton
 const FormFieldSkeleton = () => (
     <div>
         <Skeleton width={120} height={20} className="mb-1" />
@@ -26,45 +26,61 @@ const PatientAdmission = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
-    const [qrCode, setQrCode] = useState('');
+    const [portalData, setPortalData] = useState({
+        qrCodeUrl: '',
+        portalUrl: ''
+    });
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        setSuccess(false);
-        setQrCode('');
+const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess(false);
+    setPortalData({ qrCodeUrl: '', portalUrl: '' });
 
-        try {
-            const response = await axiosClient.post('/patients/admit', formData);
-            const { data } = response;
-
-            if (data.id) {
-                // Get QR code
-                const qrResponse = await axiosClient.get(`/patients/${data.id}/qr`);
-                if (qrResponse.data.qr_code) {
-                    setQrCode(qrResponse.data.qr_code);
-                    setSuccess(true);
+    try {
+        // Step 1: Admit the patient
+        const response = await axiosClient.post('/patients/admit', formData);
+        
+        if (response.data.status && response.data.id) {
+            const patientId = response.data.id;
+            setSuccess(true);
+            toast.success('Patient admitted successfully!');
+            
+            // Step 2: Generate portal access
+            try {
+                const portalResponse = await axiosClient.post(`/patients/${patientId}/generate-portal-access`);
+                
+                if (portalResponse.data.status) {
+                    setPortalData({
+                        qrCodeUrl: portalResponse.data.qrCodeUrl,
+                        portalUrl: portalResponse.data.portalUrl
+                    });
                 }
-
-                // Reset form
-                setFormData({
-                    name: '',
-                    room_number: '',
-                    ward_type: 'ward',
-                    attending_physician: '',
-                    admission_date: new Date().toISOString().split('T')[0],
-                    remarks: ''
-                });
+            } catch (portalErr) {
+                console.warn('Could not generate portal access:', portalErr);
+                // Continue anyway since the patient was created successfully
             }
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to admit patient');
-            console.error('Admission error:', err);
-        } finally {
-            setLoading(false);
+            
+            // Reset form
+            setFormData({
+                name: '',
+                room_number: '',
+                ward_type: 'ward',
+                attending_physician: '',
+                admission_date: new Date().toISOString().split('T')[0],
+                remarks: ''
+            });
+        } else {
+            throw new Error(response.data.message || 'Failed to admit patient');
         }
-    };
-
+    } catch (err) {
+        setError(err.response?.data?.message || err.message || 'Failed to admit patient');
+        console.error('Admission error:', err);
+    } finally {
+        setLoading(false);
+    }
+};
     return (
         <div className="min-h-screen bg-gray-100">
             <Navbar />
@@ -257,49 +273,78 @@ const PatientAdmission = () => {
                     </div>
                 </form>
 
-                {qrCode && (
+                {/* Portal Access Card */}
+                {portalData.qrCodeUrl && (
                     <div className="mt-6 bg-white p-6 rounded-lg shadow-sm text-center">
-                        {loading ? (
-                            <>
-                                <Skeleton width={200} height={24} className="mb-4 mx-auto" />
-                                <Skeleton width={200} height={200} className="mb-4 mx-auto" />
-                                <div className="flex justify-center space-x-4">
-                                    <Skeleton width={150} height={40} className="rounded-md" />
-                                    <Skeleton width={100} height={40} className="rounded-md" />
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Patient QR Code</h3>
-                                <div className="flex justify-center mb-4">
-                                    <img 
-                                        src={qrCode} 
-                                        alt="Patient QR Code" 
-                                        className="max-w-[200px] border rounded-lg shadow-sm"
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Patient Portal Access</h3>
+                        <div className="flex justify-center mb-4">
+                            <img 
+                                src={portalData.qrCodeUrl} 
+                                alt="Patient QR Code" 
+                                className="max-w-[200px] border rounded-lg shadow-sm"
+                            />
+                        </div>
+                        
+                        {portalData.portalUrl && (
+                            <div className="mb-4">
+                                <p className="text-sm text-gray-600 mb-2">Portal Link:</p>
+                                <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border max-w-md mx-auto">
+                                    <input
+                                        type="text"
+                                        value={portalData.portalUrl}
+                                        readOnly
+                                        className="flex-1 text-sm bg-transparent border-none focus:ring-0 text-gray-600"
                                     />
-                                </div>
-                                <div className="flex justify-center space-x-4">
-                                    <a 
-                                        href={qrCode}
-                                        download={`patient-qr-${Date.now()}.png`}
-                                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                        </svg>
-                                        Download QR Code
-                                    </a>
                                     <button
-                                        onClick={() => setQrCode('')}
-                                        className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(portalData.portalUrl);
+                                            toast.success('Portal link copied to clipboard!');
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                                        title="Copy link"
                                     >
-                                        Close
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                        </svg>
                                     </button>
                                 </div>
-                            </>
+                            </div>
                         )}
+                        
+                        <div className="flex justify-center space-x-4">
+                            <a 
+                                href={portalData.qrCodeUrl}
+                                download={`patient-qr-${Date.now()}.png`}
+                                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Download QR Code
+                            </a>
+                            {portalData.portalUrl && (
+                                <a 
+                                    href={portalData.portalUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                                >
+                                    <svg className="mr-2 h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    View Portal
+                                </a>
+                            )}
+                            <button
+                                onClick={() => setPortalData({ qrCodeUrl: '', portalUrl: '' })}
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

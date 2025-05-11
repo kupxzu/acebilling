@@ -280,35 +280,48 @@ class BillingController extends Controller
         }
     }
 
-    public function getActivePatients()
+    public function getActivePatients(Request $request)
     {
         try {
-            $patients = Patient::with(['activeAdmission' => function($query) {
-                    $query->select('id', 'patient_id', 'room_number', 'created_at', 'status');
-                }])
-                ->whereHas('admissions', function($query) {
-                    $query->where('status', 'active');
-                })
-                ->select('id', 'name')
-                ->get()
-                ->map(function($patient) {
-                    return [
-                        'id' => $patient->id,
-                        'name' => $patient->name,
-                        'room_number' => $patient->activeAdmission->room_number ?? null,
-                        'admission_date' => $patient->activeAdmission->created_at ?? null
-                    ];
+            $perPage = $request->input('per_page', 10);
+            $search = $request->input('search', '');
+
+            $query = Patient::with(['activeAdmission' => function($query) {
+                $query->select('id', 'patient_id', 'room_number', 'created_at', 'status');
+            }])
+            ->whereHas('admissions', function($query) {
+                $query->where('status', 'active');
+            });
+
+            // Add search functionality
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhereHas('activeAdmission', function($q) use ($search) {
+                          $q->where('room_number', 'like', "%{$search}%");
+                      });
                 });
+            }
+
+            $patients = $query->select('id', 'name')
+                ->paginate($perPage);
 
             return response()->json([
                 'status' => true,
-                'data' => $patients
+                'data' => $patients->items(),
+                'meta' => [
+                    'current_page' => $patients->currentPage(),
+                    'last_page' => $patients->lastPage(),
+                    'total' => $patients->total(),
+                    'per_page' => $patients->perPage()
+                ]
             ]);
+
         } catch (\Exception $e) {
             \Log::error('Failed to fetch active patients: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
-                'message' => 'Failed to fetch active patients'
+                'message' => 'Failed to fetch active patients: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -391,6 +404,42 @@ class BillingController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to generate reports'
+            ], 500);
+        }
+    }
+
+    public function downloadProgressBill($id)
+    {
+        try {
+            // Get admission with related data
+            $admission = Admission::with(['patient', 'billings'])
+                ->findOrFail($id);
+
+            $charges = $admission->billings()
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $data = [
+                'admission' => $admission,
+                'patient' => $admission->patient,
+                'charges' => $charges,
+                'total' => $charges->sum('amount'),
+                'date' => now()->format('Y-m-d')
+            ];
+
+            $pdf = PDF::loadView('billing.progress-bill', $data);
+            
+            // Set PDF options if needed
+            $pdf->setPaper('a4', 'portrait');
+            
+            // Return PDF directly without additional headers
+            return $pdf->stream("progress-bill-{$id}.pdf");
+
+        } catch (\Exception $e) {
+            \Log::error('PDF Generation failed: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to generate PDF'
             ], 500);
         }
     }
