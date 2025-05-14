@@ -10,7 +10,11 @@ return new class extends Migration
     {
         Schema::create('patients', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('first_name', 100);
+            $table->string('last_name', 100);
+            $table->string('middle_name', 100)->nullable();
+            $table->string('name_initial', 10)->nullable();
+            $table->date('date_of_birth');
             $table->string('room_number');
             $table->enum('ward_type', ['private', 'semi-private', 'ward']);
             $table->string('attending_physician');

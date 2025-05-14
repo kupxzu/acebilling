@@ -26,7 +26,11 @@ class PatientController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'name_initial' => 'nullable|string|max:10',
+            'date_of_birth' => 'required|date|before:today',
             'room_number' => 'required|string|max:50',
             'ward_type' => 'required|in:private,semi-private,ward',
             'attending_physician' => 'required|string|max:255'
@@ -113,7 +117,11 @@ class PatientController extends Controller
 public function admit(Request $request)
 {
     $validated = $request->validate([
-        'name' => 'required|string|max:255',
+        'first_name' => 'required|string|max:100',
+        'last_name' => 'required|string|max:100',
+        'middle_name' => 'nullable|string|max:100',
+        'name_initial' => 'nullable|string|max:10',
+        'date_of_birth' => 'required|date|before:today',
         'room_number' => 'required|string|max:50',
         'ward_type' => 'required|in:private,semi-private,ward',
         'attending_physician' => 'required|string|max:255',
@@ -125,7 +133,11 @@ public function admit(Request $request)
     try {
         // Create patient record
         $patient = Patient::create([
-            'name' => $validated['name'],
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'middle_name' => $validated['middle_name'],
+            'name_initial' => $validated['name_initial'],
+            'date_of_birth' => $validated['date_of_birth'],
             'room_number' => $validated['room_number'],
             'ward_type' => $validated['ward_type'],
             'attending_physician' => $validated['attending_physician']
@@ -141,33 +153,12 @@ public function admit(Request $request)
             'status' => 'active'
         ]);
 
-        // Generate QR code for the new patient
-        $fileName = 'patient-' . $patient->id . '-' . time() . '.png';
-        $folderPath = 'qrcodes';
-        
-        // Ensure directory exists
-        if (!Storage::disk('public')->exists($folderPath)) {
-            Storage::disk('public')->makeDirectory($folderPath);
-        }
-
-        // Generate QR code
-        $qrCode = QrCode::format('png')
-                        ->size(300)
-                        ->errorCorrection('H')
-                        ->margin(1)
-                        ->generate(url("/p/{$patient->id}"));
-
-        // Store using Laravel's Storage facade
-        Storage::disk('public')->put($folderPath . '/' . $fileName, $qrCode);
-
         DB::commit();
 
-        // Simply return the patient ID without trying to access undefined variables
         return response()->json([
             'status' => true,
             'message' => 'Patient admitted successfully',
-            'id' => $patient->id,
-            // Don't include hash-related URLs yet as they'll be generated separately
+            'id' => $patient->id
         ], 201);
 
     } catch (\Exception $e) {
@@ -238,29 +229,24 @@ public function admit(Request $request)
     public function show($id)
     {
         try {
-            $patient = Patient::with(['admissions' => function($query) {
-                $query->latest();
-            }])->findOrFail($id);
+            $patient = Patient::findOrFail($id);
 
             return response()->json([
                 'status' => true,
                 'data' => [
                     'id' => $patient->id,
-                    'name' => $patient->name,
+                    'first_name' => $patient->first_name,
+                    'last_name' => $patient->last_name,
+                    'middle_name' => $patient->middle_name,
+                    'name_initial' => $patient->name_initial,
+                    'date_of_birth' => $patient->date_of_birth,
                     'room_number' => $patient->room_number,
                     'ward_type' => $patient->ward_type,
                     'attending_physician' => $patient->attending_physician,
-                    'remarks' => $patient->remarks,
-                    'admission_date' => $patient->admissions->first()?->created_at,
-                    'status' => $patient->admissions->first()?->status
+                    'remarks' => $patient->remarks
                 ]
             ]);
         } catch (\Exception $e) {
-            \Log::error('Failed to fetch patient', [
-                'error' => $e->getMessage(),
-                'line' => $e->getLine()
-            ]);
-
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to fetch patient details'
@@ -290,18 +276,18 @@ public function admit(Request $request)
             $patient = Patient::findOrFail($id);
             
             $validated = $request->validate([
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:100',
+                'last_name' => 'required|string|max:100',
+                'middle_name' => 'nullable|string|max:100',
+                'name_initial' => 'nullable|string|max:10',
+                'date_of_birth' => 'required|date|before:today',
                 'room_number' => 'required|string|max:50',
-                'ward_type' => ['required', Rule::in(Patient::$wardTypes)],
+                'ward_type' => 'required|in:private,semi-private,ward',
                 'attending_physician' => 'required|string|max:255',
-                'remarks' => 'nullable|string|max:1000'
+                'remarks' => 'nullable|string'
             ]);
 
-            $patient->fill($validated);
-            
-            if (!$patient->save()) {
-                throw new \Exception('Failed to save patient data');
-            }
+            $patient->update($validated);
 
             return response()->json([
                 'status' => true,
@@ -309,24 +295,7 @@ public function admit(Request $request)
                 'data' => $patient->fresh()
             ]);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Patient not found'
-            ], 404);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
-            \Log::error('Failed to update patient', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to update patient: ' . $e->getMessage()

@@ -16,7 +16,11 @@ const FormFieldSkeleton = () => (
 const PatientAdmission = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        name: '',
+        first_name: '',
+        last_name: '',
+        middle_name: '',
+        name_initial: '',
+        date_of_birth: new Date().toISOString().split('T')[0],
         room_number: '',
         ward_type: 'ward',
         attending_physician: '',
@@ -64,7 +68,11 @@ const handleSubmit = async (e) => {
             
             // Reset form
             setFormData({
-                name: '',
+                first_name: '',
+                last_name: '',
+                middle_name: '',
+                name_initial: '',
+                date_of_birth: new Date().toISOString().split('T')[0],
                 room_number: '',
                 ward_type: 'ward',
                 attending_physician: '',
@@ -149,14 +157,65 @@ const handleSubmit = async (e) => {
                             <>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Patient Name
+                                        First Name
                                     </label>
                                     <input
                                         type="text"
                                         required
                                         className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.name}
-                                        onChange={e => setFormData({...formData, name: e.target.value})}
+                                        value={formData.first_name}
+                                        onChange={e => setFormData({...formData, first_name: e.target.value})}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Last Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={formData.last_name}
+                                        onChange={e => setFormData({...formData, last_name: e.target.value})}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Middle Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={formData.middle_name}
+                                        onChange={e => setFormData({...formData, middle_name: e.target.value})}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Name Initial
+                                    </label>
+                                    <input
+                                        type="text"
+                                        maxLength={10}
+                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={formData.name_initial}
+                                        onChange={e => setFormData({...formData, name_initial: e.target.value})}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Date of Birth
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required
+                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        value={formData.date_of_birth}
+                                        onChange={e => setFormData({...formData, date_of_birth: e.target.value})}
                                     />
                                 </div>
 
@@ -240,7 +299,11 @@ const handleSubmit = async (e) => {
                                 <button
                                     type="button"
                                     onClick={() => setFormData({
-                                        name: '',
+                                        first_name: '',
+                                        last_name: '',
+                                        middle_name: '',
+                                        name_initial: '',
+                                        date_of_birth: new Date().toISOString().split('T')[0],
                                         room_number: '',
                                         ward_type: 'ward',
                                         attending_physician: '',

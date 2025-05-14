@@ -18,7 +18,11 @@ const EditPatient = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        name: '',
+        first_name: '',
+        last_name: '',
+        middle_name: '',
+        name_initial: '',
+        date_of_birth: '',
         room_number: '',
         ward_type: '',
         attending_physician: '',
@@ -58,19 +62,26 @@ const EditPatient = () => {
     const fetchPatient = async () => {
         try {
             const response = await axiosClient.get(`/patients/${id}`);
-            const patient = response.data.data;
-            setFormData({
-                name: patient.name,
-                room_number: patient.room_number,
-                ward_type: patient.ward_type,
-                attending_physician: patient.attending_physician,
-                remarks: patient.remarks || ''
-            });
-            return patient;
+            if (response.data.status) {
+                const patient = response.data.data;
+                setFormData({
+                    first_name: patient.first_name,
+                    last_name: patient.last_name,
+                    middle_name: patient.middle_name || '',
+                    name_initial: patient.name_initial || '',
+                    date_of_birth: patient.date_of_birth,
+                    room_number: patient.room_number,
+                    ward_type: patient.ward_type,
+                    attending_physician: patient.attending_physician,
+                    remarks: patient.remarks || ''
+                });
+            } else {
+                throw new Error(response.data.message || 'Failed to fetch patient');
+            }
         } catch (err) {
             toast.error('Failed to fetch patient details');
-            console.error('Error fetching patient:', err);
-            throw err;
+            setError('Failed to fetch patient details');
+            navigate('/admitting/patients');
         }
     };
 
@@ -142,23 +153,129 @@ const EditPatient = () => {
         setSuccess(false);
 
         try {
-            await axiosClient.put(`/patients/${id}`, formData);
-            setSuccess(true);
-            toast.success('Patient updated successfully!');
-            
-            // Optional: Refresh patient data after update
-            await fetchPatient();
-            
-            setTimeout(() => {
-                navigate('/admitting/patients');
-            }, 2000);
+            const response = await axiosClient.put(`/patients/${id}`, formData);
+            if (response.data.status) {
+                setSuccess(true);
+                toast.success('Patient updated successfully!');
+                setTimeout(() => {
+                    navigate('/admitting/patients');
+                }, 2000);
+            } else {
+                throw new Error(response.data.message || 'Failed to update patient');
+            }
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update patient');
-            toast.error('Failed to update patient');
+            const errorMessage = err.response?.data?.message || err.message;
+            setError(errorMessage);
+            toast.error(errorMessage);
         } finally {
             setSaving(false);
         }
     };
+
+    const formFields = loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormFieldSkeleton />
+            <FormFieldSkeleton />
+            <FormFieldSkeleton />
+            <FormFieldSkeleton />
+            <FormFieldSkeleton />
+        </div>
+    ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label className="block text-sm font-medium text-gray-700">First Name</label>
+                <input
+                    type="text"
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                <input
+                    type="text"
+                    value={formData.last_name}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Middle Name</label>
+                <input
+                    type="text"
+                    value={formData.middle_name}
+                    onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Name Initial</label>
+                <input
+                    type="text"
+                    value={formData.name_initial}
+                    onChange={(e) => setFormData({ ...formData, name_initial: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    maxLength={10}
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                <input
+                    type="date"
+                    value={formData.date_of_birth}
+                    onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Room Number</label>
+                <input
+                    type="text"
+                    value={formData.room_number}
+                    onChange={(e) => setFormData({ ...formData, room_number: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Ward Type</label>
+                <select
+                    value={formData.ward_type}
+                    onChange={(e) => setFormData({ ...formData, ward_type: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                >
+                    <option value="">Select Ward Type</option>
+                    <option value="ward">Ward</option>
+                    <option value="semi-private">Semi-Private</option>
+                    <option value="private">Private</option>
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Attending Physician</label>
+                <input
+                    type="text"
+                    value={formData.attending_physician}
+                    onChange={(e) => setFormData({ ...formData, attending_physician: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                />
+            </div>
+            <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Remarks</label>
+                <textarea
+                    value={formData.remarks}
+                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    rows={3}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+            </div>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -196,70 +313,7 @@ const EditPatient = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow-sm rounded-lg p-6">
-                    {loading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <FormFieldSkeleton />
-                            <FormFieldSkeleton />
-                            <FormFieldSkeleton />
-                            <FormFieldSkeleton />
-                            <FormFieldSkeleton />
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Name</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Room Number</label>
-                                <input
-                                    type="text"
-                                    value={formData.room_number}
-                                    onChange={(e) => setFormData({ ...formData, room_number: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Ward Type</label>
-                                <select
-                                    value={formData.ward_type}
-                                    onChange={(e) => setFormData({ ...formData, ward_type: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    required
-                                >
-                                    <option value="ward">Ward</option>
-                                    <option value="semi-private">Semi-Private</option>
-                                    <option value="private">Private</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Attending Physician</label>
-                                <input
-                                    type="text"
-                                    value={formData.attending_physician}
-                                    onChange={(e) => setFormData({ ...formData, attending_physician: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    required
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Remarks</label>
-                                <textarea
-                                    value={formData.remarks}
-                                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                                    rows={3}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                />
-                            </div>
-                        </div>
-                    )}
+                    {formFields}
 
                     <div className="flex justify-end space-x-3">
                         {loading ? (
