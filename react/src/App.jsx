@@ -10,17 +10,19 @@ import ViewPatient from './components/admitting/ViewPatient';
 import StatementOfAccount from './components/billing/StatementOfAccount';
 import ProgressBill from './components/billing/ProgressBill';
 import PatientBills from './components/billing/PatientBills';
-import Charges from './components/billing/Charges';
 import Reports from './components/billing/Reports';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import PatientPortal from './components/portal/PatientPortal';
-
+import { AuthProvider } from './context/AuthContext';
+import ResetPassword from './components/ResetPassword';
+import ForgotPassword from './components/ForgotPassword';
+import AuthRoute from './components/AuthRoute';
 
 function App() {
   return (
-    <>
+    <AuthProvider>
       <ToastContainer 
         position="top-right"
         autoClose={3000}
@@ -37,7 +39,15 @@ function App() {
         router={createBrowserRouter([
           {
             path: '/',
-            element: <Login />,
+            element: <AuthRoute><Login /></AuthRoute>,
+          },
+          {
+            path: '/forgot-password',
+            element: <AuthRoute><ForgotPassword /></AuthRoute>,
+          },
+          {
+            path: '/reset-password/:token',
+            element: <AuthRoute><ResetPassword /></AuthRoute>,
           },
           {
             path: '/billing',
@@ -112,14 +122,6 @@ function App() {
             ),
           },
           {
-            path: '/billing/charges',
-            element: (
-              <ProtectedRoute allowedRole="billing">
-                <Charges />
-              </ProtectedRoute>
-            ),
-          },
-          {
             path: '/billing/reports',
             element: (
               <ProtectedRoute allowedRole="billing">
@@ -133,7 +135,7 @@ function App() {
           },
         ])}
       />
-    </>
+    </AuthProvider>
   );
 }
 

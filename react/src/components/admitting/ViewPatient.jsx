@@ -215,13 +215,23 @@ const ViewPatient = () => {
                             <>
                                 <div className="flex flex-col items-center space-y-4">
                                     {portalData.portalUrl && (
-                                        <QRCodeCanvas 
-                                            value={portalData.portalUrl}
-                                            size={200}
-                                            level="H"
-                                            includeMargin={true}
-                                            className="border-4 border-white shadow-lg rounded-lg"
-                                        />
+                                        <div className="relative">
+                                            <QRCodeCanvas 
+                                                value={portalData.portalUrl}
+                                                size={200}
+                                                level="H"
+                                                includeMargin={true}
+                                                className="border-4 border-white shadow-lg rounded-lg"
+                                                imageSettings={{
+                                                    src: "/your-logo.png",
+                                                    x: undefined,
+                                                    y: undefined,
+                                                    height: 60,
+                                                    width: 60,
+                                                    excavate: true,
+                                                }}
+                                            />
+                                        </div>
                                     )}
                                     <div className="text-sm text-gray-500">
                                         Scan QR code to access patient portal

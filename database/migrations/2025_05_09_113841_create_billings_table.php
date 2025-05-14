@@ -12,9 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('admission_id')->constrained()->onDelete('cascade');
             $table->string('description');
-            $table->enum('category', ['room', 'medicine', 'laboratory', 'professional_fee', 'others']);
             $table->decimal('amount', 10, 2);
-            $table->enum('status', ['pending', 'paid', 'cancelled'])->default('pending');
+            $table->decimal('total_amount', 10, 2)->default(0);
             $table->text('remarks')->nullable();
             $table->timestamps();
             $table->softDeletes();

@@ -53,9 +53,11 @@ class Patient extends Model
     /**
      * Get the active admission for the patient
      */
-    public function activeAdmission(): HasOne
+    public function activeAdmission()
     {
-        return $this->hasOne(Admission::class)->where('status', 'active');
+        return $this->hasOne(Admission::class)
+            ->where('status', 'active')
+            ->latest();
     }
 
     /**

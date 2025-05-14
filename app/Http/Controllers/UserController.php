@@ -7,6 +7,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\ResetPasswordMail;
 
 class UserController extends Controller
 {
@@ -58,7 +64,8 @@ class UserController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email',
-                'password' => 'required'
+                'password' => 'required',
+                'remember' => 'boolean'
             ]);
 
             if ($validator->fails()) {
@@ -77,13 +84,27 @@ class UserController extends Controller
             }
 
             $user = User::where('email', $request->email)->firstOrFail();
-            $token = $user->createToken('auth_token')->plainTextToken;
+            
+            // Delete any existing tokens for this user
+            $user->tokens()->delete();
+            
+            // Create token with different expiration based on remember me
+            $remember = $request->input('remember', false);
+            
+            if ($remember) {
+                // Long-lived token (30 days)
+                $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
+            } else {
+                // Short-lived token (1 day)
+                $token = $user->createToken('auth_token', ['*'], now()->addDay())->plainTextToken;
+            }
 
             return response()->json([
                 'status' => true,
                 'message' => 'Login successful',
                 'data' => $user,
-                'token' => $token
+                'token' => $token,
+                'remember' => $remember
             ]);
 
         } catch (\Exception $e) {
@@ -127,6 +148,156 @@ class UserController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to retrieve profile',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        \Log::info('Forgot password request received', ['email' => $request->email]);
+        
+        try {
+            $validator = Validator::make($request->all(), [
+                'email' => 'required|email|exists:users,email'
+            ]);
+
+            if ($validator->fails()) {
+                \Log::error('Forgot password validation failed', [
+                    'errors' => $validator->errors()->toArray()
+                ]);
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Validation Error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Generate token
+            $token = Str::random(64);
+            \Log::info('Token generated', ['token' => $token]);
+            
+            // Delete any existing password reset tokens for this email
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            
+            // Insert new token
+            DB::table('password_reset_tokens')->insert([
+                'email' => $request->email,
+                'token' => Hash::make($token),
+                'created_at' => Carbon::now()
+            ]);
+            
+            \Log::info('Token saved to database');
+
+            // Get the user
+            $user = User::where('email', $request->email)->first();
+            \Log::info('User found', ['user_id' => $user->id]);
+
+            // Create reset URL
+            $frontendUrl = config('app.frontend_url');
+            if (!$frontendUrl) {
+                $frontendUrl = 'http://localhost:3000'; // Fallback URL
+                \Log::warning('APP_FRONTEND_URL not configured, using fallback');
+            }
+            
+            $resetUrl = $frontendUrl . '/reset-password/' . $token;
+            \Log::info('Reset URL created', ['url' => $resetUrl]);
+            
+            // Check if mail class exists
+            if (!class_exists('App\Mail\ResetPasswordMail')) {
+                \Log::error('ResetPasswordMail class not found');
+                
+                // Use a simple mail instead
+                Mail::send('emails.reset-password', [
+                    'userName' => $user->name,
+                    'resetUrl' => $resetUrl
+                ], function ($message) use ($request) {
+                    $message->to($request->email)
+                            ->subject('Reset Your Password');
+                });
+            } else {
+                // Send email with reset link
+                Mail::to($request->email)->send(new ResetPasswordMail($user, $resetUrl));
+            }
+            
+            \Log::info('Email sent successfully');
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Password reset link sent to your email',
+                'debug' => [
+                    'url' => $resetUrl,
+                    'mail_driver' => config('mail.default')
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Password reset failed', [
+                'email' => $request->email ?? 'not provided',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to send reset link',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function resetPassword(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'token' => 'required|string',
+                'email' => 'required|email|exists:users,email',
+                'password' => 'required|string|min:8|confirmed',
+                'password_confirmation' => 'required'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Validation Error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Check if the token exists and is valid
+            $passwordReset = DB::table('password_reset_tokens')
+                ->where('email', $request->email)
+                ->where('created_at', '>', Carbon::now()->subHours(2)) // Token expires after 2 hours
+                ->first();
+
+            if (!$passwordReset || !Hash::check($request->token, $passwordReset->token)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Invalid or expired reset token'
+                ], 422);
+            }
+
+            // Update the user's password
+            $user = User::where('email', $request->email)->first();
+            $user->password = Hash::make($request->password);
+            $user->save();
+
+            // Delete the password reset token
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+            // Optionally, you can log the user in automatically
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Password has been reset successfully',
+                'token' => $token // Optional: auto-login after reset
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to reset password',
                 'error' => $e->getMessage()
             ], 500);
         }

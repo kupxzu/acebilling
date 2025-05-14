@@ -1,32 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import axiosClient from '../../utils/axios';
 import Navbar from '../Navbar';
 import Skeleton from 'react-loading-skeleton';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
+
+// Register Chart.js components
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const BillingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
-    totalRevenue: 0,
-    pendingPayments: 0,
-    activePatients: 0
+    totalAmount: 0,
+    wardDistribution: {
+      private: 0,
+      semiPrivate: 0,
+      ward: 0
+    }
   });
-  const [recentTransactions, setRecentTransactions] = useState([]);
+
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
+    setLoading(true);
     try {
-        const response = await axiosClient.get('/billing/dashboard-stats');
-        setStats(response.data.stats);
-        setRecentTransactions(response.data.recent_transactions);
+      const response = await axiosClient.get('/billing/dashboard-stats');
+      if (response.data && response.data.status) {
+        const data = response.data.data;
+        setStats({
+          totalAmount: data.totalAmount || 0,
+          wardDistribution: data.wardDistribution || {
+            private: 0,
+            semiPrivate: 0,
+            ward: 0
+          }
+        });
+      }
     } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
+      console.error('Failed to fetch dashboard data:', err);
+      setError('Failed to load dashboard data');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
+  };
+
+  const wardChartData = {
+    labels: ['Private', 'Semi-Private', 'Ward'],
+    datasets: [{
+      data: [
+        stats.wardDistribution.private,
+        stats.wardDistribution.semiPrivate,
+        stats.wardDistribution.ward
+      ],
+      backgroundColor: [
+        'rgba(54, 162, 235, 0.8)',
+        'rgba(75, 192, 192, 0.8)',
+        'rgba(255, 159, 64, 0.8)'
+      ],
+      borderColor: [
+        'rgba(54, 162, 235, 1)',
+        'rgba(75, 192, 192, 1)',
+        'rgba(255, 159, 64, 1)'
+      ],
+      borderWidth: 1
+    }]
   };
 
   const formatCurrency = (amount) => {
@@ -41,134 +82,80 @@ const BillingDashboard = () => {
       <Navbar />
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Billing Dashboard</h1>
-          <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Stats Cards */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {loading ? <Skeleton width={100} /> : formatCurrency(stats.totalRevenue)}
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Ward Distribution Dashboard</h1>
+
+          {error && (
+            <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4">
+              <p className="text-red-700">{error}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Total Amount Card */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Total Amount</h2>
+              {loading ? (
+                <Skeleton height={40} />
+              ) : (
+                <p className="text-3xl font-bold text-indigo-600">
+                  {formatCurrency(stats.totalAmount)}
+                </p>
+              )}
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Pending Payments</dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {loading ? <Skeleton width={100} /> : formatCurrency(stats.pendingPayments)}
-                      </dd>
-                    </dl>
-                  </div>
+            {/* Ward Distribution Card */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Ward Distribution</h2>
+              {loading ? (
+                <Skeleton height={200} />
+              ) : (
+                <div className="h-[200px] flex items-center justify-center">
+                  <Pie 
+                    data={wardChartData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'bottom'
+                        }
+                      }
+                    }}
+                  />
                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Active Patients</dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {loading ? <Skeleton width={100} /> : stats.activePatients}
-                      </dd>
-                    </dl>
-                  </div>
+            {/* Ward Statistics Grid */}
+            <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Ward Statistics</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Private Ward */}
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-blue-600 mb-2">Private Ward</h3>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {loading ? <Skeleton width={60} /> : stats.wardDistribution.private}
+                  </p>
+                  <p className="text-sm text-blue-500 mt-1">Occupied Rooms</p>
                 </div>
-              </div>
-            </div>
 
-            {/* Recent Transactions */}
-            <div className="bg-white overflow-hidden shadow rounded-lg col-span-full">
-              <div className="px-4 py-5 sm:p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-medium text-gray-900">Recent Transactions</h2>
-                  <Link
-                    to="/billing/patients"
-                    className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                  >
-                    View all
-                  </Link>
+                {/* Semi-Private Ward */}
+                <div className="bg-teal-50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-teal-600 mb-2">Semi-Private Ward</h3>
+                  <p className="text-2xl font-bold text-teal-700">
+                    {loading ? <Skeleton width={60} /> : stats.wardDistribution.semiPrivate}
+                  </p>
+                  <p className="text-sm text-teal-500 mt-1">Occupied Rooms</p>
                 </div>
-                {loading ? (
-                  <Skeleton count={5} height={40} className="mb-2" />
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Date
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Patient
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Description
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Amount
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {recentTransactions.map((transaction) => (
-                          <tr key={transaction.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {new Date(transaction.created_at).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.patient_name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {transaction.description}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatCurrency(transaction.amount)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                ${transaction.status === 'paid' ? 'bg-green-100 text-green-800' : 
-                                  transaction.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
-                                  'bg-yellow-100 text-yellow-800'}`}>
-                                {transaction.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+
+                {/* General Ward */}
+                <div className="bg-orange-50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-orange-600 mb-2">General Ward</h3>
+                  <p className="text-2xl font-bold text-orange-700">
+                    {loading ? <Skeleton width={60} /> : stats.wardDistribution.ward}
+                  </p>
+                  <p className="text-sm text-orange-500 mt-1">Occupied Rooms</p>
+                </div>
               </div>
             </div>
           </div>

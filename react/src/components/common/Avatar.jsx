@@ -18,7 +18,20 @@ const Avatar = ({ name, size = 40, className = '' }) => {
             '#DC2626', // red-600
             '#D97706', // amber-600
             '#4338CA', // indigo-700
+        
+            // additional vibrant colors
+            '#10B981', // green-500
+            '#3B82F6', // blue-500
+            '#EC4899', // pink-500
+            '#8B5CF6', // purple-500
+            '#F59E0B', // yellow-500
+            '#EF4444', // rose-500
+            '#14B8A6', // teal-500
+            '#6366F1', // indigo-500
+            '#0EA5E9', // sky-500
+            '#F43F5E', // rose-600
         ];
+        
         
         const index = name
             .split('')

@@ -7,6 +7,7 @@ use App\Models\Billing;
 use App\Models\Patient;
 use Illuminate\Http\Request;
 use PDF;
+use Carbon\Carbon;
 
 class BillingController extends Controller
 {
@@ -36,38 +37,37 @@ class BillingController extends Controller
     public function getDashboardStats()
     {
         try {
-            $stats = [
-                'totalRevenue' => Billing::where('status', 'paid')->sum('amount'),
-                'pendingPayments' => Billing::where('status', 'pending')->sum('amount'),
-                'activePatients' => Patient::whereHas('admissions', function($query) {
-                    $query->where('status', 'active');
-                })->count()
-            ];
-
-            $recentTransactions = Billing::with(['admission.patient'])
-                ->latest()
-                ->take(10)
+            // Get ward distribution
+            $wardDistribution = Admission::where('status', 'active')
+                ->selectRaw('ward_type, COUNT(*) as count')
+                ->groupBy('ward_type')
                 ->get()
-                ->map(function($billing) {
-                    return [
-                        'id' => $billing->id,
-                        'created_at' => $billing->created_at,
-                        'patient_name' => $billing->admission->patient->name,
-                        'description' => $billing->description,
-                        'amount' => $billing->amount,
-                        'status' => $billing->status
-                    ];
-                });
+                ->mapWithKeys(function ($item) {
+                    $key = str_replace('-', '', lcfirst(ucwords($item->ward_type, '-')));
+                    return [$key => $item->count];
+                })
+                ->toArray();
+
+            // Get total amount from billings
+            $totalAmount = Billing::sum('total_amount');
 
             return response()->json([
                 'status' => true,
-                'stats' => $stats,
-                'recent_transactions' => $recentTransactions
+                'data' => [
+                    'totalAmount' => $totalAmount,
+                    'wardDistribution' => [
+                        'private' => $wardDistribution['private'] ?? 0,
+                        'semiPrivate' => $wardDistribution['semiPrivate'] ?? 0,
+                        'ward' => $wardDistribution['ward'] ?? 0
+                    ]
+                ]
             ]);
         } catch (\Exception $e) {
+            \Log::error('Dashboard Stats Error: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
-                'message' => 'Failed to fetch dashboard statistics'
+                'message' => 'Failed to fetch dashboard statistics',
+                'error' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
     }
@@ -248,6 +248,40 @@ class BillingController extends Controller
         }
     }
 
+    public function getPatientTransactions($patientId)
+    {
+        try {
+            $transactions = Billing::whereHas('admission', function($query) use ($patientId) {
+                $query->where('patient_id', $patientId);
+            })
+            ->with('admission')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function($billing) {
+                return [
+                    'id' => $billing->id,
+                    'description' => $billing->description,
+                    'amount' => $billing->amount,
+                    'created_at' => $billing->created_at,
+                    'admission_id' => $billing->admission_id
+                ];
+            });
+
+            return response()->json([
+                'status' => true,
+                'data' => $transactions
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to fetch patient transactions: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to fetch transactions'
+            ], 500);
+        }
+    }
+
     public function getPatients()
     {
         try {
@@ -280,48 +314,33 @@ class BillingController extends Controller
         }
     }
 
-    public function getActivePatients(Request $request)
+    public function getActivePatients()
     {
         try {
-            $perPage = $request->input('per_page', 10);
-            $search = $request->input('search', '');
-
-            $query = Patient::with(['activeAdmission' => function($query) {
-                $query->select('id', 'patient_id', 'room_number', 'created_at', 'status');
-            }])
-            ->whereHas('admissions', function($query) {
-                $query->where('status', 'active');
-            });
-
-            // Add search functionality
-            if ($search) {
-                $query->where(function($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhereHas('activeAdmission', function($q) use ($search) {
-                          $q->where('room_number', 'like', "%{$search}%");
-                      });
+            $patients = Patient::with(['activeAdmission'])
+                ->whereHas('activeAdmission')
+                ->get()
+                ->map(function ($patient) {
+                    return [
+                        'id' => $patient->id,
+                        'name' => $patient->name,
+                        'room_number' => $patient->activeAdmission->room_number, // <-- Flattened here
+                        'ward_type' => $patient->activeAdmission->ward_type,     // <-- Flattened here
+                        'attending_physician' => $patient->activeAdmission->attending_physician, // <-- Flattened here
+                        'admission_date' => $patient->activeAdmission->created_at->format('Y-m-d'), // <-- Flattened here
+                        'remarks' => $patient->activeAdmission->remarks ?? '' // <-- Flattened here
+                    ];
                 });
-            }
-
-            $patients = $query->select('id', 'name')
-                ->paginate($perPage);
 
             return response()->json([
                 'status' => true,
-                'data' => $patients->items(),
-                'meta' => [
-                    'current_page' => $patients->currentPage(),
-                    'last_page' => $patients->lastPage(),
-                    'total' => $patients->total(),
-                    'per_page' => $patients->perPage()
-                ]
+                'data' => $patients
             ]);
 
         } catch (\Exception $e) {
             \Log::error('Failed to fetch active patients: ' . $e->getMessage());
             return response()->json([
-                'status' => false,
-                'message' => 'Failed to fetch active patients: ' . $e->getMessage()
+                'message' => 'Failed to fetch active patients'
             ], 500);
         }
     }
@@ -408,38 +427,80 @@ class BillingController extends Controller
         }
     }
 
-    public function downloadProgressBill($id)
+    public function downloadProgressBill(Request $request, $id)
     {
         try {
-            // Get admission with related data
-            $admission = Admission::with(['patient', 'billings'])
+            $patient = Patient::with(['activeAdmission'])
                 ->findOrFail($id);
 
-            $charges = $admission->billings()
-                ->orderBy('created_at', 'desc')
-                ->get();
+            if (!$patient->activeAdmission) {
+                throw new \Exception('No active admission found');
+            }
+
+            $amount = $request->query('amount', 0);
+            if (!is_numeric($amount)) {
+                throw new \Exception('Invalid amount specified');
+            }
 
             $data = [
-                'admission' => $admission,
-                'patient' => $admission->patient,
-                'charges' => $charges,
-                'total' => $charges->sum('amount'),
-                'date' => now()->format('Y-m-d')
+                'patient' => $patient,
+                'admission' => $patient->activeAdmission,
+                'amount' => floatval($amount),
+                'date' => Carbon::now()->format('Y-m-d'),
+                'room_number' => $patient->activeAdmission->room_number,
+                'attending_physician' => $patient->activeAdmission->attending_physician,
+                'ward_type' => $patient->activeAdmission->ward_type,
+                'remarks' => $patient->activeAdmission->remarks ?? ''
             ];
 
             $pdf = PDF::loadView('billing.progress-bill', $data);
             
-            // Set PDF options if needed
-            $pdf->setPaper('a4', 'portrait');
-            
-            // Return PDF directly without additional headers
             return $pdf->stream("progress-bill-{$id}.pdf");
 
         } catch (\Exception $e) {
-            \Log::error('PDF Generation failed: ' . $e->getMessage());
+            \Log::error('Progress Bill Generation Error: ', [
+                'patient_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
-                'status' => false,
-                'message' => 'Failed to generate PDF'
+                'message' => 'Failed to generate progress bill: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function saveProgressBill(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'patient_id' => 'required|exists:patients,id',
+                'amount' => 'required|numeric|min:0'
+            ]);
+
+            $patient = Patient::with('activeAdmission')->findOrFail($validated['patient_id']);
+            
+            if (!$patient->activeAdmission) {
+                throw new \Exception('No active admission found');
+            }
+
+            $billing = Billing::create([
+                'admission_id' => $patient->activeAdmission->id,
+                'description' => 'Progress Bill',
+                'amount' => $validated['amount'],
+                'total_amount' => $validated['amount']
+            ]);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Progress bill saved successfully',
+                'data' => $billing
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to save progress bill: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to save progress bill'
             ], 500);
         }
     }
