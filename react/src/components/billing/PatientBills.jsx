@@ -6,26 +6,41 @@ import Select from 'react-select';
 import { toast } from 'react-toastify';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { format as formatDateFn } from 'date-fns'; // Renamed to avoid conflict with local formatDate
+import { format as formatDateFn } from 'date-fns'; // Renamed to avoid conflict
 
-// Utility function to format dates safely
-const formatDate = (dateString) => {
+// Utility function to format dates and times safely
+const formatDateTime = (dateString) => { // Renamed to be more specific
     if (!dateString) return 'N/A';
     try {
         const date = new Date(dateString);
         if (isNaN(date.getTime())) return 'N/A'; // Invalid date
-        return formatDateFn(date, 'MMM dd, yyyy'); // Using imported date-fns format
+        // Format: Month Day, Year, Hour:Minute AM/PM (e.g., May 15, 2024, 03:45 PM)
+        return formatDateFn(date, 'MMM dd, yyyy, hh:mm a');
+    } catch (error) {
+        console.error("Error formatting date-time:", dateString, error);
+        return 'N/A';
+    }
+};
+
+// Utility function to format only dates (if needed elsewhere, or keep formatDateTime as the primary)
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'N/A';
+        return formatDateFn(date, 'MMM dd, yyyy');
     } catch (error) {
         console.error("Error formatting date:", dateString, error);
         return 'N/A';
     }
 };
 
+
 // Utility function to format currency
 const formatCurrency = (amount) => {
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount)) {
-        return 'N/A'; // Or some other placeholder for invalid amounts
+        return 'N/A';
     }
     return new Intl.NumberFormat('en-PH', {
         style: 'currency',
@@ -50,17 +65,17 @@ const PatientInfoCard = ({ patient, loading }) => {
                     </div>
                     <div>
                         <h3 className="text-lg font-semibold text-gray-900">{patient.name || 'N/A'}</h3>
-                        <p className="text-sm text-gray-500">Patient ID: {patient.id || 'N/A'}</p> {/* This is patient_id */}
-                        <p className="text-sm text-gray-500">Date of Birth: {formatDate(patient.date_of_birth)}</p>
+                        <p className="text-sm text-gray-500">Patient ID: {patient.id || 'N/A'}</p>
+                        <p className="text-sm text-gray-500">Date of Birth: {formatDate(patient.date_of_birth)}</p> {/* Uses formatDate for DOB */}
                     </div>
                 </div>
-                <StatusBadge status={patient.status} /> {/* This should be admission status */}
+                <StatusBadge status={patient.status} />
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-4">
                 <InfoField label="Room Number" value={patient.room_number} />
                 <InfoField label="Ward Type" value={patient.ward_type} capitalize />
-                <InfoField label="Admission Date" value={formatDate(patient.admission_date)} />
+                <InfoField label="Admission Date" value={formatDate(patient.admission_date)} /> {/* Uses formatDate */}
                 <InfoField label="Length of Stay" value={patient.lengthOfStay} />
             </div>
 
@@ -71,7 +86,7 @@ const PatientInfoCard = ({ patient, loading }) => {
     );
 };
 
-// Loading skeleton for PatientInfoCard
+// Loading skeleton for PatientInfoCard (no changes)
 const LoadingPatientCard = () => (
     <div className="bg-white p-6 rounded-xl shadow-lg">
         <div className="animate-pulse">
@@ -102,7 +117,8 @@ const LoadingPatientCard = () => (
     </div>
 );
 
-// Status badge component
+
+// Status badge component (no changes)
 const StatusBadge = ({ status }) => {
     const statusClasses = {
         active: 'bg-green-100 text-green-800',
@@ -119,7 +135,7 @@ const StatusBadge = ({ status }) => {
     );
 };
 
-// Info field component
+// Info field component (no changes)
 const InfoField = ({ label, value, capitalize = false }) => (
     <div>
         <p className="text-sm text-gray-500">{label}</p>
@@ -129,7 +145,8 @@ const InfoField = ({ label, value, capitalize = false }) => (
     </div>
 );
 
-// Transaction item component
+
+// Transaction item component - UPDATED to use formatDateTime
 const TransactionItem = ({ transaction, index }) => {
     const getColorClasses = (colorIndex) => {
         const colorMap = {
@@ -137,29 +154,29 @@ const TransactionItem = ({ transaction, index }) => {
             1: { bg: 'bg-green-50', text: 'text-green-600' },
             2: { bg: 'bg-blue-50', text: 'text-blue-600' }
         };
-        return colorMap[colorIndex % 3] || colorMap[0]; // Use modulo for cycling colors
+        return colorMap[colorIndex % 3] || colorMap[0];
     };
     const colors = getColorClasses(index);
 
     return (
         <li className="px-4 py-3 hover:bg-gray-50 transition-colors duration-200 sm:px-6">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0"> {/* Added min-w-0 for truncation */}
+                <div className="flex items-center gap-3 min-w-0">
                     <div className={`p-2 rounded-lg ${colors.bg}`}>
                         <svg className={`h-5 w-5 ${colors.text}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>
-                    <div className="min-w-0 flex-1"> {/* Added min-w-0 and flex-1 for proper truncation */}
+                    <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">
                             {transaction.description || 'No Description'}
                         </p>
                         <p className="text-xs text-gray-500">
-                            {formatDate(transaction.created_at)}
+                            {formatDateTime(transaction.created_at)} {/* USE formatDateTime HERE */}
                         </p>
                     </div>
                 </div>
-                <div className="text-right ml-2 flex-shrink-0"> {/* Added flex-shrink-0 */}
+                <div className="text-right ml-2 flex-shrink-0">
                     <div className="text-sm font-semibold text-gray-900">
                         {formatCurrency(transaction.amount)}
                     </div>
@@ -169,7 +186,7 @@ const TransactionItem = ({ transaction, index }) => {
     );
 };
 
-// PDF preview component
+// PDF preview component (no changes)
 const PdfPreview = ({ file }) => {
     const [previewUrl, setPreviewUrl] = useState(null);
 
@@ -181,7 +198,7 @@ const PdfPreview = ({ file }) => {
         } else {
             setPreviewUrl(null);
         }
-        return () => { // Cleanup
+        return () => {
             if (fileUrl) {
                 URL.revokeObjectURL(fileUrl);
             }
@@ -206,11 +223,11 @@ const PdfPreview = ({ file }) => {
     );
 };
 
-// PdfUploadForm component
+// PdfUploadForm component (no functional changes needed for this request)
 const PdfUploadForm = ({ admissionId, onUploadSuccess, billAmount }) => {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
-    const fileInputRef = React.useRef(null); // Ref for resetting file input
+    const fileInputRef = React.useRef(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -233,7 +250,7 @@ const PdfUploadForm = ({ admissionId, onUploadSuccess, billAmount }) => {
         const formData = new FormData();
         formData.append('pdf_file', file);
         formData.append('admission_id', admissionId);
-        formData.append('description', `Bill: ${file.name}`); // Use a consistent description
+        formData.append('description', `Bill: ${file.name}`);
         formData.append('amount', numericBillAmount);
 
         setUploading(true);
@@ -244,8 +261,8 @@ const PdfUploadForm = ({ admissionId, onUploadSuccess, billAmount }) => {
 
             if ((response.status === 200 || response.status === 201) && response.data && response.data.status === true) {
                 toast.success(response.data.message || 'Bill and PDF uploaded successfully!');
-                setFile(null); // Clear the file state
-                if (fileInputRef.current) { // Reset file input field
+                setFile(null);
+                if (fileInputRef.current) {
                     fileInputRef.current.value = "";
                 }
                 if (onUploadSuccess) {
@@ -315,8 +332,7 @@ const PdfUploadForm = ({ admissionId, onUploadSuccess, billAmount }) => {
     );
 };
 
-
-// Main PatientBills component
+// Main PatientBills component (structure and other logic remains largely the same)
 const PatientBills = () => {
     const navigate = useNavigate();
 
@@ -325,15 +341,15 @@ const PatientBills = () => {
         loadingDetails: false,
         error: null,
         patients: [],
-        selectedPatient: null, // Stores { value: patient_id, label: 'Name', patientData: { ...allDataIncludingAdmissionId } }
-        patientDetails: null, // Stores full patient details including active_admission_id
+        selectedPatient: null,
+        patientDetails: null,
         billAmount: '',
         recentTransactions: []
     });
 
     const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
 
-    const customSelectStyles = { // (Copied from previous full response, ensure styles are as desired)
+    const customSelectStyles = {
         control: (provided, selectState) => ({
             ...provided, minHeight: '42px', padding: '2px', borderRadius: '0.75rem',
             borderColor: selectState.isFocused ? '#6366f1' : '#d1d5db',
@@ -356,26 +372,23 @@ const PatientBills = () => {
     const fetchActivePatients = useCallback(async () => {
         updateState({ loadingPatients: true, error: null });
         try {
-            const response = await axiosClient.get('/billing/active-patients'); // Backend must return patient_id and admission_id
+            const response = await axiosClient.get('/billing/active-patients');
             if (response.data?.data) {
                 const formattedPatients = response.data.data.map(patient => {
                     if (!patient.patient_id || !patient.admission_id) {
                         console.warn("Patient data missing patient_id or admission_id:", patient);
-                        return null; // Skip this patient if essential IDs are missing
+                        return null;
                     }
                     const lastName = patient.last_name || '';
                     const firstName = patient.first_name || '';
                     const middleInitial = patient.middle_name ? ` ${patient.middle_name.charAt(0)}.` : '';
                     const fullName = `${lastName}, ${firstName}${middleInitial}`.trim() || `Patient ID: ${patient.patient_id}`;
                     return {
-                        value: patient.patient_id, // The value used for selection is patient_id
+                        value: patient.patient_id,
                         label: fullName,
-                        patientData: { // Store all data including the critical admission_id
-                            ...patient, // contains patient_id, admission_id, first_name, etc.
-                            fullNameForDisplay: fullName
-                        }
+                        patientData: { ...patient, fullNameForDisplay: fullName }
                     };
-                }).filter(p => p !== null); // Filter out any null entries
+                }).filter(p => p !== null);
                 updateState({ patients: formattedPatients, loadingPatients: false });
             } else { throw new Error('Invalid response format for active patients'); }
         } catch (err) {
@@ -386,7 +399,7 @@ const PatientBills = () => {
         }
     }, []);
 
-    const fetchTransactions = useCallback(async (patientId) => { // Takes patient_id
+    const fetchTransactions = useCallback(async (patientId) => {
         if (!patientId) {
             updateState({ recentTransactions: [] }); return;
         }
@@ -402,7 +415,6 @@ const PatientBills = () => {
         }
     }, []);
 
-
     const handlePatientSelect = useCallback(async (selectedOption) => {
         if (!selectedOption) {
             updateState({ selectedPatient: null, patientDetails: null, recentTransactions: [], billAmount: '', error: null });
@@ -415,13 +427,11 @@ const PatientBills = () => {
         });
 
         try {
-            // selectedOption.value is patient_id. Patient details are usually fetched by patient_id.
-            // Ensure your /patients/{id}/details endpoint uses patient_id.
-            const detailsResponse = await axiosClient.get(`/patients/${selectedOption.value}/details`);
+            const detailsResponse = await axiosClient.get(`/patients/${selectedOption.value}/details`); // selectedOption.value is patient_id
 
             if (detailsResponse.data?.data) {
                 const serverDetails = detailsResponse.data.data;
-                const clientPatientData = selectedOption.patientData; // Data from active-patients list
+                const clientPatientData = selectedOption.patientData;
 
                 let lengthOfStay = 'N/A';
                 const admissionDateString = clientPatientData.admission_date || serverDetails.admission_date;
@@ -440,16 +450,16 @@ const PatientBills = () => {
                 const patientDisplayName = clientPatientData.fullNameForDisplay || `${serverDetails.last_name}, ${serverDetails.first_name}`;
 
                 const formattedDetails = {
-                    ...serverDetails, // Base details from patient-specific endpoint
-                    id: selectedOption.value, // This is patient_id
-                    active_admission_id: clientPatientData.admission_id, // CRITICAL: from active-patients list
+                    ...serverDetails,
+                    id: selectedOption.value, // patient_id
+                    active_admission_id: clientPatientData.admission_id, // from active-patients list data
                     name: patientDisplayName,
                     lengthOfStay,
                     admission_date: admissionDateString,
                     room_number: clientPatientData.room_number || serverDetails.room_number,
                     ward_type: clientPatientData.ward_type || serverDetails.ward_type,
                     attending_physician: clientPatientData.attending_physician || serverDetails.attending_physician,
-                    status: clientPatientData.status || serverDetails.status, // This should be the admission status from active-patients
+                    status: clientPatientData.status || serverDetails.status, // admission status
                     date_of_birth: clientPatientData.date_of_birth || serverDetails.date_of_birth,
                 };
 
@@ -572,16 +582,16 @@ const PatientBills = () => {
                                         </div>
                                     </div>
                                     <PdfUploadForm
-                                        admissionId={patientDetails.active_admission_id} // Pass the correct admission_id
+                                        admissionId={patientDetails.active_admission_id}
                                         billAmount={billAmount}
                                         onUploadSuccess={() => {
-                                            if (patientDetails && patientDetails.id) fetchTransactions(patientDetails.id); // patientDetails.id is patient_id
+                                            if (patientDetails && patientDetails.id) fetchTransactions(patientDetails.id);
                                             updateState({ billAmount: '' });
                                         }}
                                     />
                                 </div>
 
-                                {patientDetails && patientDetails.id && ( // patientDetails.id is patient_id
+                                {patientDetails && patientDetails.id && (
                                     <div className="space-y-4">
                                         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

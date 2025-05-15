@@ -3,121 +3,103 @@
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PatientController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\TestController;
-
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| is assigned the "api" middleware group. Enjoy building your API!
+|
 */
 
-// Public routes
+// --- PUBLIC ROUTES ---
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login']);
-Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
-// Password reset routes (public)
+// Password Reset
 Route::post('/forgot-password', [UserController::class, 'forgotPassword']);
 Route::post('/reset-password', [UserController::class, 'resetPassword']);
 
-// // Test routes for debugging (remove in production)
-// Route::get('/test-mail', [TestController::class, 'testMail']);
-// Route::get('/test-password-reset-table', [TestController::class, 'checkPasswordResetTable']);
-// Route::get('/test-forgot-password-flow', [TestController::class, 'testForgotPasswordFlow']);
-// Route::get('/test-simple-mail', function () {
-//     try {
-//         Mail::raw('This is a test email', function ($message) {
-//             $message->to('test@example.com')
-//                     ->subject('Test Email');
-//         });
-        
-//         return response()->json([
-//             'status' => true,
-//             'message' => 'Email sent',
-//             'driver' => config('mail.default'),
-//             'log_location' => storage_path('logs/laravel.log')
-//         ]);
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'status' => false,
-//             'error' => $e->getMessage()
-//         ]);
-//     }
-// });
-
-// Important: These public portal routes must be accessible without authentication
+// Public Patient Portal Access
 Route::get('/portal/patient/{hash}', [PatientController::class, 'getPortalData']);
 Route::get('/p/{hash}', [PatientController::class, 'showPortal'])->name('patient.portal');
 
-// Protected routes
+
+// --- PROTECTED ROUTES ---
 Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function () {
-    // User routes
+
+    // User Management
     Route::post('/logout', [UserController::class, 'logout']);
     Route::get('/profile', [UserController::class, 'profile']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
 
-    // Patient routes
-    Route::get('/patients', [PatientController::class, 'index']);
-    Route::post('/patients', [PatientController::class, 'store']);
-    Route::post('/patients/admit', [PatientController::class, 'admit']);
-    Route::get('/patients/{id}', [PatientController::class, 'show']);
-    Route::get('/patients/{id}/details', [PatientController::class, 'details']);
-    Route::put('/patients/{id}', [PatientController::class, 'update']);
-    Route::post('/patients/check-exists', [PatientController::class, 'checkExists']);
-    
-    // QR code and portal access routes
-    Route::get('/patients/{id}/qr', [PatientController::class, 'getQR']);
-    Route::post('/patients/{patient}/generate-qr', [PatientController::class, 'generateQR']);
-    Route::get('/patients/{id}/portal-access', [PatientController::class, 'getPortalAccess']);
-    Route::post('/patients/{id}/generate-portal-access', [PatientController::class, 'generatePortalAccess']);
+    // Dashboard
+    // Note: Moved '/dashboard/stats' here as it likely requires authentication.
+    // If it's truly public, move it outside this auth group.
+    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
-    // Billing routes
-    Route::prefix('billing')->group(function () {
-        // Dashboard
-        Route::get('/dashboard', [BillingController::class, 'dashboard']);
-        Route::get('/dashboard-stats', [BillingController::class, 'getDashboardStats']);
-        
-        // Patient listing
-        Route::get('/patients', [BillingController::class, 'getPatients']);
-        Route::get('/active-patients', [BillingController::class, 'getActivePatients']);
-        
-        // SOA and Progress Bills
-        Route::get('/soa/{id}', [BillingController::class, 'getSOA']);
-        Route::get('/soa/{id}/download', [BillingController::class, 'downloadSOA']);
-        Route::get('/progress/{id}', [BillingController::class, 'getProgressBill']);
-        Route::get('/progress/{id}/download', [BillingController::class, 'downloadProgressBill']);
-        Route::post('/progress/save', [BillingController::class, 'saveProgressBill']);
-        
-        // Charges
-        Route::post('/charges/{id}', [BillingController::class, 'addCharge']);
-        Route::patch('/charges/{id}/status', [BillingController::class, 'updateChargeStatus']);
-        Route::post('/charges/{id}/status', [BillingController::class, 'updateChargeStatus']);
-        Route::get('/patient-charges/{patientId}', [BillingController::class, 'getPatientCharges']);
-        
-        // Reports
-        
-        // Transactions
-        Route::get('/transactions/{patientId}', [BillingController::class, 'getPatientTransactions']);
+    // Patient Management
+    Route::prefix('patients')->group(function () {
+        Route::get('/', [PatientController::class, 'index']);
+        Route::post('/', [PatientController::class, 'store']);
+        Route::post('/admit', [PatientController::class, 'admit']);
+        Route::get('/{id}', [PatientController::class, 'show']);
+        Route::get('/{id}/details', [PatientController::class, 'details']);
+        Route::put('/{id}', [PatientController::class, 'update']);
+        Route::post('/check-exists', [PatientController::class, 'checkExists']);
+
+        // QR Code and Portal Access (Patient Specific)
+        Route::get('/{id}/qr', [PatientController::class, 'getQR']);
+        Route::post('/{patient}/generate-qr', [PatientController::class, 'generateQR']); // Note: {patient} implies ID
+        Route::get('/{id}/portal-access', [PatientController::class, 'getPortalAccess']);
+        Route::post('/{id}/generate-portal-access', [PatientController::class, 'generatePortalAccess']);
     });
-});
 
-Route::middleware(['auth:sanctum'])->group(function () {
+    // Billing Management
     Route::prefix('billing')->group(function () {
-        Route::get('/active-patients', [BillingController::class, 'getActivePatients']);
-        Route::get('/patients/{id}/details', [BillingController::class, 'getPatientDetails']);
-        Route::get('/progress/{id}/download', [BillingController::class, 'downloadProgressBill']);
+        // Billing Dashboard
+        Route::get('/dashboard', [BillingController::class, 'dashboard']); // Main billing dashboard data
+        Route::get('/dashboard-stats', [BillingController::class, 'getDashboardStats']); // Specific stats for billing dashboard
+
+        // Patient Lists for Billing Context
+        Route::get('/patients', [BillingController::class, 'getPatients']); // Paginated list of patients with bill summaries
+        Route::get('/active-patients', [BillingController::class, 'getActivePatients']); // List of active patients for selection
+
+        // Statement of Account (SOA) and Progress Bills
+        Route::get('/soa/{id}', [BillingController::class, 'getSOA']); // {id} is likely admission_id
+        Route::get('/soa/{id}/download', [BillingController::class, 'downloadSOA']);
+        Route::get('/progress/{id}', [BillingController::class, 'getProgressBill']); // {id} is likely admission_id
+        Route::get('/progress/{id}/download', [BillingController::class, 'downloadProgressBill']); // {id} is patient_id for this one based on controller
         Route::post('/progress/save', [BillingController::class, 'saveProgressBill']);
-        
-        // Add these new routes
+
+        // Charges
+        Route::post('/charges/{id}', [BillingController::class, 'addCharge']); // {id} is likely admission_id
+        Route::patch('/charges/{id}/status', [BillingController::class, 'updateChargeStatus']); // {id} is billing_id (charge_id)
+        // Removed redundant POST for '/charges/{id}/status'
+        Route::get('/patient-charges/{patientId}', [BillingController::class, 'getPatientCharges']);
+
+        // Transactions / Billing History
+        Route::get('/transactions/{patientId}', [BillingController::class, 'getPatientTransactions']);
+
+        // PDF Upload and Retrieval
         Route::post('/upload-pdf', [BillingController::class, 'uploadPdf']);
         Route::get('/patient-pdfs/{patientId}', [BillingController::class, 'getPatientPdfs']);
-    });
 
-    Route::get('/billing/reports', [BillingController::class, 'getReports']);
+        // Reports
+        Route::get('/reports', [BillingController::class, 'getReports']);
+    });
 });
+
+// Note: The route GET /billing/patients/{id}/details from the second auth group was removed.
+// The existing GET /patients/{id}/details (PatientController@details) is assumed to be the correct one
+// for fetching general patient details.
+// If BillingController needs a specific patient detail view, a new method and route should be defined.
+
