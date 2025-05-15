@@ -318,36 +318,43 @@ class BillingController extends Controller
     public function getActivePatients()
     {
         try {
-            $patients = Patient::with(['activeAdmission'])
+            $patients = Patient::with(['activeAdmission']) // Ensure 'activeAdmission' is defined in your Patient model
                 ->whereHas('activeAdmission')
                 ->get()
                 ->map(function ($patient) {
+                    if (!$patient->activeAdmission) { // Should not happen due to whereHas, but good check
+                        return null;
+                    }
                     return [
-                        'id' => $patient->id,
+                        'patient_id' => $patient->id,         // This is patients.id
+                        'admission_id' => $patient->activeAdmission->id, // *** THIS IS CRUCIAL *** admissions.id
+    
                         'first_name' => $patient->first_name,
                         'middle_name' => $patient->middle_name,
                         'last_name' => $patient->last_name,
-                        'date_of_birth' => $patient->date_of_birth ? date('Y-m-d', strtotime($patient->date_of_birth)) : null,
+                        'date_of_birth' => $patient->date_of_birth ? Carbon::parse($patient->date_of_birth)->format('Y-m-d') : null, // Consistent formatting
+    
+                        // Data from activeAdmission
                         'room_number' => $patient->activeAdmission->room_number,
                         'ward_type' => $patient->activeAdmission->ward_type,
                         'attending_physician' => $patient->activeAdmission->attending_physician,
-                        'admission_date' => $patient->activeAdmission->created_at->format('Y-m-d'),
-                        'status' => $patient->activeAdmission->status,
+                        'admission_date' => $patient->activeAdmission->created_at ? $patient->activeAdmission->created_at->format('Y-m-d') : null, // or admission_date field if you have one
+                        'status' => $patient->activeAdmission->status, // This is the admission status
                         'remarks' => $patient->activeAdmission->remarks ?? ''
                     ];
-                });
-
+                })->filter(); // Remove any nulls if a patient somehow had no active admission
+    
             return response()->json([
                 'status' => true,
                 'data' => $patients
             ]);
-
+    
         } catch (\Exception $e) {
-            \Log::error('Failed to fetch active patients: ' . $e->getMessage());
+            \Log::error('Failed to fetch active patients: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to fetch active patients',
-                'error' => config('app.debug') ? $e->getMessage() : null
+                'error' => config('app.debug') ? $e->getMessage() : 'Server error'
             ], 500);
         }
     }
