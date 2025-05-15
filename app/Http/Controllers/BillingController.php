@@ -8,6 +8,7 @@ use App\Models\Patient;
 use Illuminate\Http\Request;
 use PDF;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class BillingController extends Controller
 {
@@ -323,12 +324,16 @@ class BillingController extends Controller
                 ->map(function ($patient) {
                     return [
                         'id' => $patient->id,
-                        'name' => $patient->name,
-                        'room_number' => $patient->activeAdmission->room_number, // <-- Flattened here
-                        'ward_type' => $patient->activeAdmission->ward_type,     // <-- Flattened here
-                        'attending_physician' => $patient->activeAdmission->attending_physician, // <-- Flattened here
-                        'admission_date' => $patient->activeAdmission->created_at->format('Y-m-d'), // <-- Flattened here
-                        'remarks' => $patient->activeAdmission->remarks ?? '' // <-- Flattened here
+                        'first_name' => $patient->first_name,
+                        'middle_name' => $patient->middle_name,
+                        'last_name' => $patient->last_name,
+                        'date_of_birth' => $patient->date_of_birth ? date('Y-m-d', strtotime($patient->date_of_birth)) : null,
+                        'room_number' => $patient->activeAdmission->room_number,
+                        'ward_type' => $patient->activeAdmission->ward_type,
+                        'attending_physician' => $patient->activeAdmission->attending_physician,
+                        'admission_date' => $patient->activeAdmission->created_at->format('Y-m-d'),
+                        'status' => $patient->activeAdmission->status,
+                        'remarks' => $patient->activeAdmission->remarks ?? ''
                     ];
                 });
 
@@ -340,7 +345,9 @@ class BillingController extends Controller
         } catch (\Exception $e) {
             \Log::error('Failed to fetch active patients: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Failed to fetch active patients'
+                'status' => false,
+                'message' => 'Failed to fetch active patients',
+                'error' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
     }
@@ -502,6 +509,129 @@ class BillingController extends Controller
             return response()->json([
                 'message' => 'Failed to save progress bill'
             ], 500);
+        }
+    }
+
+    // Add this new method to handle PDF uploads
+    public function uploadPdf(Request $request)
+    {
+        try {
+            $request->validate([
+                'pdf_file' => 'required|mimes:pdf|max:10240', // max 10MB
+                'admission_id' => 'required|exists:admissions,id',
+                'description' => 'required|string',
+                'amount' => 'required|numeric|min:0'
+            ]);
+
+            $file = $request->file('pdf_file');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            
+            // Store the file
+            $path = $file->storeAs('billing_pdfs', $fileName, 'public');
+
+            // Create billing record with PDF
+            $billing = Billing::create([
+                'admission_id' => $request->admission_id,
+                'description' => $request->description,
+                'amount' => $request->amount,
+                'total_amount' => $request->amount,
+                'pdf_file' => $fileName,
+                'pdf_path' => $path,
+                'pdf_original_name' => $file->getClientOriginalName()
+            ]);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'PDF uploaded successfully',
+                'data' => $billing
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('PDF upload failed: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to upload PDF'
+            ], 500);
+        }
+    }
+
+    // Add method to get PDFs for a patient
+    public function getPatientPdfs($patientId)
+    {
+        try {
+            $pdfs = Billing::whereHas('admission', function($query) use ($patientId) {
+                $query->where('patient_id', $patientId);
+            })
+            ->whereNotNull('pdf_file')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+            return response()->json([
+                'status' => true,
+                'data' => $pdfs
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to fetch PDFs'
+            ], 500);
+        }
+    }
+
+    public function showPdf($id)
+    {
+        try {
+            // Get billing with relationships
+            $billing = Billing::with(['admission.patient'])->findOrFail($id);
+
+            if (!$billing->admission) {
+                throw new \Exception('No admission record found for this billing');
+            }
+
+            // Check if PDF exists
+            if (!Storage::exists($billing->pdf_path)) {
+                throw new \Exception('PDF file not found');
+            }
+
+            // Format the data
+            $data = [
+                'billing' => $billing,
+                'patient' => $billing->admission->patient,
+                'admission' => $billing->admission,
+                'billDate' => $billing->created_at ? $billing->created_at->format('M d, Y') : 'N/A'
+            ];
+
+            return view('portal.show-pdf', $data);
+
+        } catch (\Exception $e) {
+            \Log::error('Error showing PDF: ' . $e->getMessage());
+            return back()->with('error', 'Unable to display billing information');
+        }
+    }
+
+    public function showPublic($id)
+    {
+        try {
+            $admission = Admission::with(['patient', 'billings'])->findOrFail($id);
+            
+            $billings = $admission->billings()
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $total = $billings->sum('amount');
+
+            $data = [
+                'admission' => $admission,
+                'patient' => $admission->patient,
+                'billings' => $billings,
+                'total' => $total
+            ];
+
+            return view('portal.show', $data);
+        } catch (\Exception $e) {
+            \Log::error('Error in showPublic: ' . $e->getMessage());
+            abort(404);
         }
     }
 }

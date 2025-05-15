@@ -85,6 +85,10 @@ class DashboardController extends Controller
                     'semiPrivate' => Admission::where('ward_type', 'semi-private')
                         ->where('status', 'active')->count(),
                     'ward' => Admission::where('ward_type', 'ward')
+                        ->where('status', 'active')->count(),
+                    'executive' => Admission::where('ward_type', 'executive')
+                        ->where('status', 'active')->count(),
+                    'suite' => Admission::where('ward_type', 'suite')
                         ->where('status', 'active')->count()
                 ],
                 

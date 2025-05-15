@@ -10,7 +10,6 @@ import ViewPatient from './components/admitting/ViewPatient';
 import StatementOfAccount from './components/billing/StatementOfAccount';
 import ProgressBill from './components/billing/ProgressBill';
 import PatientBills from './components/billing/PatientBills';
-import Reports from './components/billing/Reports';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -118,14 +117,6 @@ function App() {
             element: (
               <ProtectedRoute allowedRole="billing">
                 <PatientBills />
-              </ProtectedRoute>
-            ),
-          },
-          {
-            path: '/billing/reports',
-            element: (
-              <ProtectedRoute allowedRole="billing">
-                <Reports />
               </ProtectedRoute>
             ),
           },

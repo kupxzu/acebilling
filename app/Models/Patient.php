@@ -45,7 +45,7 @@ class Patient extends Model
      *
      * @var array<string>
      */
-    public static $wardTypes = ['ward', 'semi-private', 'private'];
+    public static $wardTypes = ['ward', 'semi-private', 'private', 'executive', 'suite'];
 
     /**
      * Get all admissions for the patient

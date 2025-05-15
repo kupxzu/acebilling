@@ -17,7 +17,7 @@ return new class extends Migration
             $table->datetime('admission_date');
             $table->datetime('discharge_date')->nullable();
             $table->string('room_number');
-            $table->enum('ward_type', ['private', 'semi-private', 'ward']);
+            $table->enum('ward_type', ['private', 'semi-private', 'ward' , 'executive', 'suite']);
             $table->string('attending_physician');
             $table->enum('status', ['active', 'discharged', 'transferred'])->default('active');
             $table->text('remarks')->nullable();

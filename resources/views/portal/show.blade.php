@@ -4,172 +4,250 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Progress Bill - {{ $patient->name }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Print styles */
+        @media print {
+            .no-print { display: none !important; }
+            @page { margin: 20mm; }
+            body { print-color-adjust: exact; }
+        }
+        
+        /* Custom animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        /* Gradient backgrounds */
+        .gradient-to-br {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .subtle-gradient {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <!-- Responsive Navbar -->
-    <nav class="bg-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-24"> <!-- Increased height from h-20 to h-24 -->
+    <!-- Enhanced Navbar -->
+    <nav class="bg-white shadow-lg sticky top-0 z-50 no-print">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center h-20">
                 <!-- Logo Section -->
-                <div class="flex-shrink-0 flex items-center">
+                <div class="flex items-center space-x-4">
                     <img class="block h-20 w-auto" src="{{ asset('your-logo.png') }}" alt="Hospital Logo">
-                    <div class="ml-3">
-                        <span class="block text-2xl font-bold text-gray-900 hidden md:block">ACEMCT</span>
-                        <span class="block text-sm text-gray-500 hidden md:block">ACE MEDICAL CENTER TUGUEGARAO</span>
+
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900">ACEMCT</h1>
+                        <p class="text-xs text-gray-500">ACE Medical Center Tuguegarao</p>
                     </div>
                 </div>
 
-                <!-- Mobile menu button -->
-                <div class="flex items-center md:hidden">
-                    <button type="button" 
-                            class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                            onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
-                            aria-expanded="false">
-                        <span class="sr-only">Open main menu</span>
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                <!-- Status Badge -->
+                <div class="flex items-center space-x-4">
+                    <span class="px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        Active Patient
+                    </span>
+                    <button class="md:hidden p-2 rounded-lg hover:bg-gray-100">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                         </svg>
                     </button>
-                </div>
-
-                <!-- Desktop Navigation -->
-                <div class="hidden md:flex md:items-center md:space-x-4">
-                    <span class="text-gray-900 text-lg font-semibold">ACE MEDICAL CENTER TUGUEGARAO</span>
                 </div>
             </div>
         </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Progress Bill Header -->
-        <div class="mb-8">
-            <br>
-            <h1 class="text-5xl font-bold text-gray-900">TOTAL BILL<hr></h1>
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header Section -->
+        <div class="mb-8 text-center animate-fadeIn">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Progress Bill</h1>
+            <p class="text-lg text-gray-600">Patient Billing Statement</p>
         </div>
         
-        <!-- Redesigned Patient Information -->
-        <div class="bg-white shadow-lg rounded-xl p-6 mb-6">
-            <div class="flex items-center gap-3 mb-6">
-                <div class="p-2 bg-indigo-100 rounded-lg">
-                    <svg class="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                </div>
-                <h2 class="text-xl font-semibold text-gray-900">Patient Information</h2>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Left Column -->
-                <div class="bg-gray-50 p-4 rounded-lg">
-                    <div class="text-sm text-gray-500 mb-1">Patient Name</div>
-                    <div class="text-base font-semibold text-gray-900">{{ $patient->name }}</div>
-                </div>
-
-                <!-- Middle Column -->
-                <div class="space-y-4">
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <div class="text-sm text-gray-500 mb-1">Room</div>
-                        <div class="text-base font-semibold text-gray-900">{{ $admission->room_number }}</div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <div class="text-sm text-gray-500 mb-1">Ward Type</div>
-                        <div class="text-base font-semibold text-gray-900">{{ $admission->ward_type }}</div>
-                    </div>
-                </div>
-
-                <!-- Right Column -->
-                <div class="space-y-4">
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <div class="text-sm text-gray-500 mb-1">Attending Physician</div>
-                        <div class="text-base font-semibold text-gray-900">{{ $admission->attending_physician }}</div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <div class="text-sm text-gray-500 mb-1">Admission Date</div>
-                        <div class="text-base font-semibold text-gray-900">{{ $admission->created_at->format('M d, Y') }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Progress Bill Content -->
-        <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
-            <div class="flex justify-between items-center mb-6">
-                <div class="space-y-1">
-                    <p class="text-sm text-gray-500">Bill Date</p>
-                    <p class="text-lg font-medium">{{ now()->format('M d, Y') }}</p>
-                </div>
-                <div>
-                    <a href="{{ route('billing.progress.download', ['id' => $admission->id]) }}" 
-                       target="_blank" 
-                       class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200">
-                        <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <!-- Patient Information Card -->
+        <div class="bg-white shadow-xl rounded-2xl overflow-hidden mb-8 animate-fadeIn">
+            <!-- Card Header -->
+            <div class="gradient-to-br p-6 text-white">
+                <div class="flex items-center space-x-3">
+                    <div class="p-3 bg-white/20 rounded-xl backdrop-blur">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                         </svg>
-                        Download Bill
-                    </a>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold">
+                            @if($patient->name)
+                                {{ $patient->name }}
+                            @else
+                                {{ $patient->last_name ?? '' }}{{ $patient->first_name ? ', ' . $patient->first_name : '' }}{{ $patient->middle_name ? ' ' . $patient->middle_name : '' }}
+                            @endif
+                        </h2>
+                        <p class="text-white/80">Patient ID: {{ $patient->id }}</p>
+                    </div>
                 </div>
             </div>
 
-            @if($billings->count() > 0)
-                <div class="overflow-hidden rounded-lg border border-gray-200">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
-                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($billings as $billing)
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ $billing->created_at->format('M d, Y') }}
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-900">
-                                        {{-- {{ $billing->description }} --}}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                        ₱{{ number_format($billing->amount, 2) }}
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                        <tfoot class="bg-gray-50">
-                            <tr>
-                                <td colspan="2" class="px-6 py-4 text-sm font-bold text-gray-900">
-                                    Total Amount
-                                </td>
-                                <td class="px-6 py-4 text-sm font-bold text-gray-900 text-right">
-                                    ₱{{ number_format($total, 2) }}
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
+            <!-- Card Body -->
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Personal Information -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Personal Info</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Date of Birth</p>
+                                    <p class="font-medium text-gray-900">{{ date('M d, Y', strtotime($patient->date_of_birth)) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Information -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Room Details</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Room Number</p>
+                                    <p class="font-medium text-gray-900">{{ $patient->room_number ?? $admission->room_number ?? 'N/A' }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Ward Type</p>
+                                    <p class="font-medium text-gray-900 capitalize">{{ $patient->ward_type ?? $admission->ward_type ?? 'N/A' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Medical Information -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Medical Info</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Attending Physician</p>
+                                    <p class="font-medium text-gray-900">{{ $patient->attending_physician ?? $admission->attending_physician ?? 'N/A' }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Admission Date</p>
+                                    <p class="font-medium text-gray-900">{{ date('M d, Y', strtotime($patient->admission_date ?? $admission->admission_date ?? $admission->created_at)) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            @else
-                <div class="text-center py-8">
-                    <p class="text-gray-500 italic">No charges found</p>
-                </div>
-            @endif
+            </div>
         </div>
 
-        <!-- Rate Us Section -->
-        <div class="text-center py-8">
-            <div class="inline-flex items-center space-x-2">
-                <span class="text-gray-600">Was this helpful?</span>
-                {{-- {{ route('feedback.create', ['admission_id' => $admission->id]) }} --}}
-                <a href="#" 
-                   class="inline-flex items-center px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors duration-200">
-                    <svg class="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                    </svg>
+        <!-- Bill Summary -->
+        <div class="bg-white shadow-xl rounded-2xl overflow-hidden mb-8 animate-fadeIn">
+            <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-6 border-b">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900">Bill Preview</h2>
+                        <p class="text-sm text-gray-600">Generated on {{ now()->format('F d, Y h:i A') }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600">Total Bill</p>
+                        <p class="text-3xl font-bold text-gray-900">₱{{ number_format($total ?? 0, 2) }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6">
+                @if($billings->count() > 0)
+                    <!-- PDF Preview Container -->
+                    {{-- <div class="mb-4 flex justify-end">
+                        <a href="{{ Storage::url($billings->first()->pdf_path) }}" 
+                           download
+                           class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                            Download PDF
+                        </a>
+                    </div> --}}
+                    <div class="w-full h-[800px] border border-gray-200 rounded-lg overflow-hidden">
+                        @foreach($billings as $billing)
+                            @if($billing->pdf_path)
+                                <iframe 
+                                    src="{{ Storage::url($billing->pdf_path) }}"
+                                    class="w-full h-full"
+                                    type="application/pdf"
+                                    frameborder="0">
+                                </iframe>
+                                @break
+                            @endif
+                        @endforeach
+                    </div>
+                @else
+                    <div class="text-center py-12">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <p class="mt-4 text-gray-500">No bill available yet</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Rating Section -->
+        <div class="text-center py-12 no-print animate-fadeIn">
+            <div class="inline-flex flex-col items-center">
+                <a href="{{ url('/rate/' . $patient->id) }}" 
+                   class="text-blue-600 hover:text-blue-800 transition-colors duration-200 font-medium">
                     Rate your experience
                 </a>
+                <p class="text-sm text-gray-600 mt-2">Your feedback helps us improve our services</p>
             </div>
-            <p class="mt-2 text-sm text-gray-500">Your feedback helps us improve our service</p>
         </div>
     </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-8 mt-12 no-print">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm">&copy; {{ date('Y') }} ACE Medical Center Tuguegarao. All rights reserved.</p>
+            <p class="text-xs text-gray-400 mt-2">This is a computer-generated document. No signature is required.</p>
+        </div>
+    </footer>
 </body>
 </html>

@@ -76,7 +76,10 @@ class UserController extends Controller
                 ], 422);
             }
 
-            if (!Auth::attempt($request->only('email', 'password'))) {
+            $credentials = $request->only('email', 'password');
+            $remember = $request->boolean('remember', false);
+
+            if (!Auth::attempt($credentials, $remember)) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid login credentials'
@@ -85,26 +88,19 @@ class UserController extends Controller
 
             $user = User::where('email', $request->email)->firstOrFail();
             
-            // Delete any existing tokens for this user
+            // Revoke all existing tokens
             $user->tokens()->delete();
             
-            // Create token with different expiration based on remember me
-            $remember = $request->input('remember', false);
-            
-            if ($remember) {
-                // Long-lived token (30 days)
-                $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
-            } else {
-                // Short-lived token (1 day)
-                $token = $user->createToken('auth_token', ['*'], now()->addDay())->plainTextToken;
-            }
+            // Create new token with expiration based on remember me
+            $expiration = $remember ? now()->addDays(30) : now()->addDay();
+            $token = $user->createToken('auth_token', ['*'], $expiration)->plainTextToken;
 
             return response()->json([
                 'status' => true,
                 'message' => 'Login successful',
                 'data' => $user,
                 'token' => $token,
-                'remember' => $remember
+                'expires_at' => $expiration->toISOString()
             ]);
 
         } catch (\Exception $e) {

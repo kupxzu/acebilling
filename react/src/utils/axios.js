@@ -3,25 +3,21 @@ import axios from 'axios';
 const axiosClient = axios.create({
     baseURL: '/api',
     headers: {
+        'X-Requested-With': 'XMLHttpRequest',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
-    }
+    },
+    withCredentials: true // Important for CSRF and session cookies
 });
 
-axiosClient.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    const tokenExpiry = localStorage.getItem('tokenExpiry');
-    
-    // Check if token has expired before making request
-    if (token && tokenExpiry && new Date(tokenExpiry) < new Date()) {
-        // Token has expired
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('tokenExpiry');
-        window.location.href = '/';
-        return Promise.reject(new Error('Token expired'));
+// Add request interceptor for CSRF token
+axiosClient.interceptors.request.use(async config => {
+    // Get CSRF cookie before the first request
+    if (!document.cookie.includes('XSRF-TOKEN')) {
+        await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
     }
-    
+
+    const token = localStorage.getItem('token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -31,12 +27,10 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
     response => response,
     error => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 || error.response?.status === 419) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             localStorage.removeItem('tokenExpiry');
-            // Don't use window.location.href here
-            // The AuthContext will handle redirects
         }
         return Promise.reject(error);
     }

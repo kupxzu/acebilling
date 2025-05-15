@@ -1,377 +1,317 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../utils/axios';
 import Navbar from '../Navbar';
 import Select from 'react-select';
 import { toast } from 'react-toastify';
+import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { format } from 'date-fns';
 
-// Helper function to format dates
+// Utility function to format dates safely
 const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    
     try {
-        if (!dateString) return 'N/A';
         const date = new Date(dateString);
-        // Check if the date is valid before formatting
-        return isNaN(date.getTime()) ? 'N/A' : format(date, 'MMM dd, yyyy');
-    } catch (e) {
-         console.error("Error formatting date:", e);
+        if (isNaN(date.getTime())) return 'N/A';
+        return format(date, 'MMM dd, yyyy');
+    } catch (error) {
+        console.error("Error formatting date:", error);
         return 'N/A';
     }
 };
 
-const PatientBills = () => {
-    const navigate = useNavigate();
-    // Loading state for the initial patient dropdown fetch
-    const [loadingPatients, setLoadingPatients] = useState(true);
-    // Loading state for fetching detailed patient information
-    const [loadingDetails, setLoadingDetails] = useState(false);
-    // State for general error messages
-    const [error, setError] = useState(null);
+// Utility function to format currency
+const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 2
+    }).format(amount);
+};
 
-    // State to hold the list of patients for the dropdown (basic info)
-    const [patients, setPatients] = useState([]);
-    // State to hold the currently selected patient object from react-select { value: id, label: name }
-    const [selectedPatient, setSelectedPatient] = useState(null);
+// PatientInfoCard component
+const PatientInfoCard = ({ patient, loading }) => {
+    if (loading) return <LoadingPatientCard />;
+    if (!patient) return null;
+    
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <div className="bg-indigo-100 p-3 rounded-full">
+                        <svg className="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900">{patient.full_name}</h3>
+                        <p className="text-sm text-gray-500">Patient ID: {patient.id}</p>
+                        <p className="text-sm text-gray-500">Date of Birth: {patient.date_of_birth}</p>
+                    </div>
+                </div>
+                <StatusBadge status={patient.status} />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mt-4">
+                <InfoField label="Room Number" value={patient.room_number} />
+                <InfoField label="Ward Type" value={patient.ward_type} capitalize />
+                <InfoField label="Admission Date" value={formatDate(patient.admission_date)} />
+                <InfoField label="Length of Stay" value={patient.lengthOfStay} />
+            </div>
+            
+            <div className="mt-4 pt-4 border-t">
+                <InfoField label="Attending Physician" value={patient.attending_physician} />
+            </div>
+        </div>
+    );
+};
 
-    // State for the bill amount input
-    const [billAmount, setBillAmount] = useState('');
+// Loading skeleton for PatientInfoCard
+const LoadingPatientCard = () => (
+    <div className="bg-white p-6 rounded-xl shadow-lg">
+        <div className="animate-pulse">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <Skeleton circle height={48} width={48} />
+                    <div>
+                        <Skeleton height={20} width={150} />
+                        <Skeleton height={16} width={100} />
+                    </div>
+                </div>
+                <Skeleton height={24} width={60} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+                {[...Array(4)].map((_, i) => (
+                    <div key={i}>
+                        <Skeleton height={16} width={80} />
+                        <Skeleton height={20} width={120} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
 
-    // State to hold the full detailed patient object fetched after selection
-    // This object is expected to have flattened admission details (room_number, status, etc.)
-    const [patientDetails, setPatientDetails] = useState(null);
-
-    // State to hold the URL of the generated PDF preview
-    const [pdfUrl, setPdfUrl] = useState(null);
-    // State to control the visibility of the PDF preview modal
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // State to hold the list of recent transactions
-    const [recentTransactions, setRecentTransactions] = useState([]);
-
-
-    // Effect to fetch the initial list of active patients for the dropdown
-    useEffect(() => {
-        const fetchActivePatients = async () => {
-            setLoadingPatients(true);
-            try {
-                // API endpoint to get a list of active patients.
-                // Assuming this returns an array of objects like { id, name, ... }
-                const response = await axiosClient.get('/billing/active-patients');
-                setPatients(response.data.data);
-                setError(null); // Clear any previous errors on successful fetch
-            } catch (err) {
-                console.error('Error fetching active patients for dropdown:', err);
-                setError('Failed to load active patients.');
-                setPatients([]); // Clear patients list on error
-            } finally {
-                setLoadingPatients(false);
-            }
-        };
-        fetchActivePatients();
-    }, []); // Empty dependency array means this effect runs only once on component mount
-
-    // Effect to fetch the full details of the selected patient
-    useEffect(() => {
-        const fetchPatientDetails = async () => {
-            // Only fetch details if a patient has been selected from the dropdown
-            if (selectedPatient) {
-                setLoadingDetails(true); // Indicate that details are loading
-                // Clear previous patient details and related states while loading new ones
-                setPatientDetails(null);
-                setPdfUrl(null); // Clear PDF URL
-                setIsModalOpen(false); // Close modal
-                setBillAmount('');
-                // Clear recent transactions when selecting a new patient
-                setRecentTransactions([]);
-
-                try {
-                    // API endpoint to get detailed information for a specific patient.
-                    // Based on console output, this returns { status: true, data: { ...flattened_details... } }
-                    const response = await axiosClient.get(`/patients/${selectedPatient.value}/details`);
-
-                    // Log the response data structure to verify it matches expectations
-                    console.log('Fetched patient details:', response.data);
-
-                    // Assuming the detailed patient object is in response.data.data
-                    if (response.data && response.data.status && response.data.data) {
-                         setPatientDetails(response.data.data);
-                         setError(null); // Clear previous errors on successful fetch
-                    } else {
-                         // Handle cases where API response indicates failure or missing data.data
-                         const message = response.data.message || 'Failed to load patient details: No data received.';
-                         toast.error(message);
-                         setError(message);
-                         setPatientDetails(null); // Clear details on error
-                    }
-
-                } catch (err) {
-                    console.error('Error fetching patient details:', err);
-                    // Handle API errors (e.g., 404 if patient not found, 500 server error)
-                    const errorMessage = err.response?.data?.message || 'Failed to fetch patient details due to an API error.';
-                    toast.error(errorMessage);
-                    setError(errorMessage);
-                    setPatientDetails(null); // Clear details on error
-                } finally {
-                    setLoadingDetails(false); // Loading is complete
-                }
-            } else {
-                // If no patient is selected (e.g., dropdown is cleared), clear the details and related states
-                setPatientDetails(null);
-                // Clear recent transactions when selection is cleared
-                setRecentTransactions([]);
-                setPdfUrl(null);
-                setIsModalOpen(false); // Close modal
-                setBillAmount('');
-                 setError(null); // Clear error when selection is cleared
-            }
-        };
-
-        fetchPatientDetails();
-        // This effect runs whenever the 'selectedPatient' state changes
-    }, [selectedPatient]);
-
-     // Effect to fetch recent transactions for the selected patient
-    useEffect(() => {
-        const fetchTransactions = async () => {
-            // Only fetch transactions if patientDetails is loaded and has a valid ID
-            if (patientDetails && patientDetails.id) {
-                 try {
-                    // API endpoint to get transactions for a specific patient
-                    const response = await axiosClient.get(`/billing/transactions/${patientDetails.id}`);
-                     // Assuming response.data.data is the array of transactions
-                    if(response.data && response.data.status && response.data.data) {
-                        setRecentTransactions(response.data.data);
-                         setError(null); // Clear previous errors on successful fetch
-                    } else {
-                        setRecentTransactions([]); // Clear transactions if response is not successful
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch transactions:', error);
-                    // We might not want a toast for this unless critical, but log it
-                    setRecentTransactions([]); // Clear transactions on error
-                }
-            } else {
-                // If no patient details are loaded, clear the transactions list
-                setRecentTransactions([]);
-            }
-        };
-
-        // Only run this effect if patientDetails is available
-        if (patientDetails) {
-           fetchTransactions();
-        } else {
-            // Clear transactions immediately if patientDetails becomes null
-            setRecentTransactions([]);
-        }
-
-    }, [patientDetails]); // This effect depends on patientDetails
-
-
-    // Handler for when a patient is selected from the dropdown
-    const handlePatientSelect = (option) => {
-        // 'option' is the object from react-select: { value: patientId, label: patientName }
-        setSelectedPatient(option);
-        // The detailed patient info will be fetched by the second useEffect which
-        // is triggered by the change in 'selectedPatient'.
+// Status badge component
+const StatusBadge = ({ status }) => {
+    const statusClasses = {
+        active: 'bg-green-100 text-green-800',
+        inactive: 'bg-gray-100 text-gray-800',
+        pending: 'bg-yellow-100 text-yellow-800'
     };
+    
+    return (
+        <div className={`px-3 py-1 rounded-full ${statusClasses[status] || statusClasses.inactive}`}>
+            {status || 'N/A'}
+        </div>
+    );
+};
 
-    // Handler for changes in the bill amount input
-    const handleAmountChange = (e) => {
-        // Allow only digits and a single decimal point
-        const value = e.target.value.replace(/[^0-9.]/g, '');
-        // Prevent entering more than one decimal point
-        const parts = value.split('.');
-        if (parts.length > 2) {
-             return; // Do not update state if more than one decimal point is entered
-        }
-        setBillAmount(value);
+// Info field component
+const InfoField = ({ label, value, capitalize = false }) => (
+    <div>
+        <p className="text-sm text-gray-500">{label}</p>
+        <p className={`font-medium ${capitalize ? 'capitalize' : ''}`}>
+            {value || 'N/A'}
+        </p>
+    </div>
+);
+
+// Transaction item component
+const TransactionItem = ({ transaction, index }) => {
+    // Fixed color classes to avoid dynamic class issues
+    const getColorClasses = (colorIndex) => {
+        const colorMap = {
+            0: { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+            1: { bg: 'bg-green-100', text: 'text-green-600' },
+            2: { bg: 'bg-blue-100', text: 'text-blue-600' }
+        };
+        return colorMap[colorIndex] || colorMap[0];
     };
+    
+    const colors = getColorClasses(index % 3);
+    
+    return (
+        <li className="px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${colors.bg}`}>
+                        <svg className={`h-5 w-5 ${colors.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-900">
+                            {transaction.description}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                            {formatDate(transaction.created_at)}
+                        </p>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <div className="text-sm font-bold text-gray-900">
+                        {formatCurrency(parseFloat(transaction.amount))}
+                    </div>
+                </div>
+            </div>
+        </li>
+    );
+};
 
-    // Handler to generate the PDF preview
-    const generatePreview = async () => {
-        // Validate input: ensure patientDetails is loaded, has an ID, has status 'active',
-        // and essential fields for the bill are present. Also check if billAmount is valid.
-        if (!billAmount || !patientDetails || !patientDetails.id || patientDetails.status !== 'active' ||
-            !patientDetails.name || !patientDetails.room_number || !patientDetails.ward_type || !patientDetails.attending_physician) {
-            toast.error('Please select a patient with complete active admission details and enter a valid bill amount.');
+// Add the PDF preview component
+const PdfPreview = ({ file }) => {
+    const [previewUrl, setPreviewUrl] = useState(null);
+
+    useEffect(() => {
+        if (file) {
+            const fileUrl = URL.createObjectURL(file);
+            setPreviewUrl(fileUrl);
+            return () => URL.revokeObjectURL(fileUrl);
+        }
+    }, [file]);
+
+    if (!previewUrl) return null;
+
+    return (
+        <div className="mt-4">
+            <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 border-b">
+                    <h3 className="text-sm font-medium text-gray-700">Preview</h3>
+                </div>
+                <iframe
+                    src={previewUrl}
+                    className="w-full h-[900px]"
+                    title="PDF Preview"
+                />
+            </div>
+        </div>
+    );
+};
+
+// Update the PdfUploadForm component
+const PdfUploadForm = ({ patientId, onUploadSuccess, billAmount }) => {
+    const [file, setFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!file) return;
+        
+        // Validate bill amount
+        if (!billAmount || isNaN(billAmount) || parseFloat(billAmount) <= 0) {
+            toast.error('Please enter a valid bill amount');
             return;
         }
 
-        // Parse the amount and validate it's a positive number
-        const amount = parseFloat(billAmount);
-        if (isNaN(amount) || amount < 0) {
-             toast.error('Please enter a valid numeric amount.');
-             return;
-        }
+        const formData = new FormData();
+        formData.append('pdf_file', file);
+        formData.append('admission_id', patientId);
+        formData.append('description', file.name);
+        formData.append('amount', parseFloat(billAmount));
 
+        setUploading(true);
         try {
-             // Call the backend endpoint to generate the PDF.
-             // Use patientDetails.id as the patient ID.
-            const response = await axiosClient.get(
-                `/billing/progress/${patientDetails.id}/download`, {
-                    params: { amount: amount }, // Pass the parsed amount as a query parameter
-                    responseType: 'blob', // Instruct axios to expect binary data (the PDF file)
-                    headers: {
-                        'Accept': 'application/pdf' // Tell the server we prefer PDF
-                    }
-                }
-            );
-
-            // Check the Content-Type header to confirm the response is a PDF
-            if (response.headers['content-type'] && response.headers['content-type'].includes('application/pdf')) {
-                // Create a Blob from the response data and create an object URL for the iframe
-                const pdfBlob = new Blob([response.data], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                setPdfUrl(pdfUrl); // Set the URL to display the PDF in the iframe
-                setIsModalOpen(true); // Open the modal
-                 setError(null); // Clear any previous errors on successful PDF generation
-            } else {
-                 // Handle cases where the response is not a PDF (e.g., an error page, JSON error)
-                const reader = new FileReader();
-                reader.onload = async () => { // Use async because .text() is async
-                    try {
-                        // Attempt to read the response data as text to see if it's a JSON error message
-                         const errorText = await new Blob([response.data]).text();
-                        const errorResponse = JSON.parse(errorText);
-                        const message = errorResponse.message || 'Failed to generate preview. Received unexpected data.';
-                        toast.error(message);
-                        setError(message);
-                        setPdfUrl(null); // Clear PDF preview on error
-                        setIsModalOpen(false); // Ensure modal is closed on error
-                    } catch (parseError) {
-                        // If parsing fails, it's likely not JSON, just some other non-PDF response
-                        const message = 'Failed to generate preview. Received unexpected response format.';
-                        toast.error(message);
-                        setError(message);
-                        setPdfUrl(null); // Clear PDF preview on error
-                        setIsModalOpen(false); // Ensure modal is closed on error
-                        console.error('Failed to parse unexpected response:', parseError);
-                    }
-                };
-                 // Ensure there is data to read before attempting to read as text
-                 if (response.data) {
-                    reader.readAsText(response.data);
-                 } else {
-                     const message = 'Failed to generate preview. Received empty response.';
-                     toast.error(message);
-                     setError(message);
-                     setPdfUrl(null);
-                     setIsModalOpen(false); // Ensure modal is closed
-                 }
-            }
-        } catch (error) {
-            console.error('PDF Generation Error:', error);
-            // Handle network errors or API errors (status codes like 404, 500)
-            const errorMessage = error.response?.data?.message || 'Failed to generate preview. An error occurred.';
-            toast.error(errorMessage);
-            setError(errorMessage);
-            setPdfUrl(null); // Clear PDF preview on error
-            setIsModalOpen(false); // Ensure modal is closed on error
-        }
-    };
-
-    // Handler to save the progress bill
-    const handleSave = async () => {
-         // Validate input: ensure patientDetails is loaded, has an ID, has status 'active',
-         // and essential fields for the bill are present. Also check if billAmount is valid.
-        if (!billAmount || !patientDetails || !patientDetails.id || patientDetails.status !== 'active' ||
-             !patientDetails.name || !patientDetails.room_number || !patientDetails.ward_type || !patientDetails.attending_physician) {
-            toast.error('Please select a patient with complete active admission details and enter a valid bill amount.');
-            return;
-        }
-
-        // Parse the amount and validate it's a valid positive number
-        const amount = parseFloat(billAmount);
-        if (isNaN(amount) || amount < 0) {
-             toast.error('Please enter a valid numeric amount.');
-             return;
-        }
-
-        try {
-             // Call the backend endpoint to save the progress bill.
-             // Use patientDetails.id as the patient_id.
-            const response = await axiosClient.post('/billing/progress/save', {
-                patient_id: patientDetails.id,
-                amount: amount // Use the parsed amount
+            const response = await axiosClient.post('/billing/upload-pdf', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-             // Assuming the API returns status: true on success
-            if (response.data && response.data.status) {
-                toast.success(response.data.message || 'Progress bill saved successfully');
-                // *** MODIFIED RESET BEHAVIOR to stay on the patient view ***
-                // Only clear the bill amount input field
-                setBillAmount('');
-                // Clear the PDF preview as it's now outdated and close the modal
-                setPdfUrl(null);
-                setIsModalOpen(false);
-                // Refresh the recent transactions for the *current* patient
-                // This ensures the newly saved bill appears in the list.
-                const transactionsResponse = await axiosClient.get(`/billing/transactions/${patientDetails.id}`);
-                 if(transactionsResponse.data && transactionsResponse.data.status && transactionsResponse.data.data) {
-                    setRecentTransactions(transactionsResponse.data.data);
-                 } else {
-                    setRecentTransactions([]); // Clear transactions if fetching fails
-                    console.error('Failed to refresh transactions after save.');
-                 }
-                // *** END MODIFIED RESET BEHAVIOR ***
-
-                 setError(null); // Clear any previous errors on successful save
-
-            } else {
-                // Handle cases where the API response indicates failure (status: false)
-                 const message = response.data.message || 'Failed to save progress bill.';
-                 toast.error(message);
-                 setError(message);
+            if (response.data.status) {
+                toast.success('Bill and PDF uploaded successfully');
+                setFile(null);
+                if (onUploadSuccess) onUploadSuccess();
             }
-
         } catch (error) {
-            console.error('Failed to save progress bill:', error);
-            // Handle network errors or API errors (e.g., 422 validation errors, 500 server error)
-             const errorMessage = error.response?.data?.message || 'Failed to save progress bill. An error occurred.';
-             toast.error(errorMessage);
-             setError(errorMessage);
+            toast.error('Failed to upload bill and PDF');
+            console.error('Upload error:', error);
+        } finally {
+            setUploading(false);
         }
     };
 
-    // Handler to download the generated PDF
-    const handleDownload = () => {
-        // Ensure there is a PDF URL and patient details are loaded for the filename
-        if (pdfUrl && patientDetails) {
-            const link = document.createElement('a');
-            link.href = pdfUrl;
-            // Use the patient's ID for the downloaded filename, with a fallback
-            link.download = `progress-bill-${patientDetails.id || 'patient'}.pdf`;
-            // Programmatically click the link to trigger the download
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+    const handleFileChange = (e) => {
+        const selectedFile = e.target.files[0];
+        if (selectedFile && selectedFile.type === 'application/pdf') {
+            setFile(selectedFile);
         } else {
-            // Inform the user if there's no PDF to download
-            toast.info('Generate the preview first before downloading.');
+            toast.error('Please select a valid PDF file');
+            e.target.value = null;
         }
     };
 
-    // Function to close the modal
-    const closeModal = () => {
-        setIsModalOpen(false);
-        // Optionally clear the pdfUrl when closing the modal if you don't need to keep it
-        // setPdfUrl(null); // Keep the PDF URL so download button works after closing modal
-    };
+    return (
+        <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Upload PDF</label>
+                    <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleFileChange}
+                        className="mt-1 block w-full text-sm text-gray-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-full file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-indigo-50 file:text-indigo-700
+                            hover:file:bg-indigo-100"
+                    />
+                </div>
+                <button
+                    type="submit"
+                    disabled={uploading || !file}
+                    className="inline-flex items-center px-4 py-2 border border-transparent 
+                        rounded-md shadow-sm text-sm font-medium text-white 
+                        bg-indigo-600 hover:bg-indigo-700 focus:outline-none 
+                        focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 
+                        disabled:opacity-50"
+                >
+                    {uploading ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Uploading...
+                        </>
+                    ) : (
+                        'Upload PDF'
+                    )}
+                </button>
+            </form>
 
-    // Clean up the PDF object URL when the component unmounts or pdfUrl changes
-    useEffect(() => {
-        return () => {
-            if (pdfUrl) {
-                URL.revokeObjectURL(pdfUrl);
-            }
-        };
-    }, [pdfUrl]); // This effect runs when pdfUrl changes or component unmounts
+            {/* Add the PDF preview component */}
+            {file && <PdfPreview file={file} />}
+        </div>
+    );
+};
 
-    // Custom styles for react-select to match the enhanced design
+// Main component
+const PatientBills = () => {
+    const navigate = useNavigate();
+    
+    // State management
+    const [state, setState] = useState({
+        loadingPatients: true,
+        loadingDetails: false,
+        error: null,
+        patients: [],
+        selectedPatient: null,
+        patientDetails: null,
+        billAmount: '',
+        recentTransactions: []
+    });
+
+    // Update state helper
+    const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
+
+    // Custom select styles
     const customSelectStyles = {
         control: (provided, state) => ({
             ...provided,
+            minHeight: '42px',
+            padding: '2px',
             borderRadius: '0.75rem',
             borderColor: state.isFocused ? '#6366f1' : '#e5e7eb',
             boxShadow: state.isFocused ? '0 0 0 3px rgba(99, 102, 241, 0.1)' : 'none',
@@ -386,25 +326,208 @@ const PatientBills = () => {
         }),
         option: (provided, state) => ({
             ...provided,
+            padding: '8px 12px',
+            display: 'flex',
+            flexDirection: 'column',
             backgroundColor: state.isSelected ? '#6366f1' : state.isFocused ? '#f3f4f6' : 'white',
+            color: state.isSelected ? 'white' : '#374151',
             '&:hover': {
-                backgroundColor: '#f3f4f6'
+                backgroundColor: state.isSelected ? '#6366f1' : '#f3f4f6'
             }
+        }),
+        singleValue: (provided) => ({
+            ...provided,
+            fontSize: '1rem',
+            color: '#111827'
         })
     };
+
+    // Fetch active patients
+    const fetchActivePatients = useCallback(async () => {
+        try {
+            const response = await axiosClient.get('/billing/active-patients');
+            
+            if (response.data?.data) {
+                const formattedPatients = response.data.data.map(patient => {
+                    // Format the patient name consistently
+                    const lastName = patient.last_name || '';
+                    const firstName = patient.first_name || '';
+                    const middleName = patient.middle_name || '';
+                    const fullName = `${lastName}, ${firstName}${middleName ? ' ' + middleName : ''}`.trim();
+                    
+                    return {
+                        value: patient.id,
+                        label: fullName || `Patient ID: ${patient.id}`,
+                        patientData: {
+                            ...patient,
+                            fullName,
+                            dateOfBirth: patient.date_of_birth
+                        }
+                    };
+                });
+                
+                updateState({ 
+                    patients: formattedPatients, 
+                    error: null,
+                    loadingPatients: false 
+                });
+            } else {
+                throw new Error('Invalid response format');
+            }
+        } catch (err) {
+            console.error('Error fetching active patients:', err);
+            updateState({ 
+                error: 'Failed to load active patients.',
+                patients: [],
+                loadingPatients: false 
+            });
+        }
+    }, []);
+
+    // Fetch patient transactions
+    const fetchTransactions = useCallback(async (patientId) => {
+        if (!patientId) {
+            updateState({ recentTransactions: [] });
+            return;
+        }
+
+        try {
+            const response = await axiosClient.get(`/billing/transactions/${patientId}`);
+            
+            if (response.data?.data) {
+                updateState({ recentTransactions: response.data.data });
+            } else {
+                updateState({ recentTransactions: [] });
+            }
+        } catch (error) {
+            console.error('Failed to fetch transactions:', error);
+            updateState({ recentTransactions: [] });
+        }
+    }, []);
+
+    // Handle patient selection
+    const handlePatientSelect = useCallback(async (option) => {
+        updateState({ 
+            selectedPatient: option,
+            loadingDetails: true,
+            error: null 
+        });
+        
+        try {
+            if (option) {
+                const response = await axiosClient.get(`/patients/${option.value}/details`);
+                
+                if (response.data?.data) {
+                    const details = response.data.data;
+                    
+                    // Calculate length of stay
+                    let lengthOfStay = 'N/A';
+                    if (details.admission_date) {
+                        const admissionDate = new Date(details.admission_date);
+                        const today = new Date();
+                        const diffTime = Math.abs(today - admissionDate);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        lengthOfStay = `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+                    }
+                    
+                    // Get the patient name - the API returns 'name' as a concatenated field
+                    let patientName = details.name || '';
+                    
+                    // If name is not available, try to construct it from individual fields
+                    if (!patientName && (details.first_name || details.last_name)) {
+                        const lastName = details.last_name || '';
+                        const firstName = details.first_name || '';
+                        const middleName = details.middle_name || '';
+                        
+                        if (lastName && firstName) {
+                            patientName = `${lastName}, ${firstName}${middleName ? ' ' + middleName : ''}`;
+                        } else if (firstName) {
+                            patientName = `${firstName}${middleName ? ' ' + middleName : ''}`;
+                        } else if (lastName) {
+                            patientName = lastName;
+                        }
+                    }
+                    
+                    // If still no name, use patient ID as fallback
+                    if (!patientName) {
+                        patientName = `Patient ID: ${details.id}`;
+                    }
+                    
+                    const formattedDetails = {
+                        ...details,
+                        lengthOfStay,
+                        name: patientName.trim(),
+                        first_name: details.first_name,
+                        last_name: details.last_name,
+                        middle_name: details.middle_name
+                    };
+                    
+                    updateState({ 
+                        patientDetails: formattedDetails,
+                        error: null,
+                        loadingDetails: false 
+                    });
+                    
+                    // Fetch transactions for the selected patient
+                    await fetchTransactions(option.value);
+                } else {
+                    throw new Error(response.data?.message || 'Failed to load patient details');
+                }
+            } else {
+                updateState({ 
+                    patientDetails: null,
+                    recentTransactions: [],
+                    loadingDetails: false 
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching patient details:', err);
+            console.error('Response data:', err.response?.data);
+            const errorMessage = err.response?.data?.message || 'Failed to fetch patient details';
+            toast.error(errorMessage);
+            updateState({ 
+                error: errorMessage,
+                patientDetails: null,
+                loadingDetails: false 
+            });
+        }
+    }, [fetchTransactions]);
+
+    // Handle amount change
+    const handleAmountChange = useCallback((e) => {
+        const value = e.target.value.replace(/[^0-9.]/g, '');
+        const parts = value.split('.');
+        
+        if (parts.length <= 2) {
+            updateState({ billAmount: value });
+        }
+    }, []);
+
+    // Initial data fetch
+    useEffect(() => {
+        fetchActivePatients();
+    }, [fetchActivePatients]);
+
+    const {
+        loadingPatients,
+        loadingDetails,
+        error,
+        patients,
+        selectedPatient,
+        patientDetails,
+        billAmount,
+        recentTransactions
+    } = state;
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
             <Navbar />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-8">
-                    <h1 className="text-black text-3xl font-bold">
-                        Progress Bill 
-                    </h1>
+                    <h1 className="text-black text-3xl font-bold">Progress Bill</h1>
                     <p className="text-gray-600 mt-2">Generate and manage progress bills for active patients</p>
                 </div>
 
-                {/* Display main error message if any */}
                 {error && (
                     <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-lg shadow-sm" role="alert">
                         <div className="flex">
@@ -425,100 +548,67 @@ const PatientBills = () => {
                         <label htmlFor="patient-select" className="block text-sm font-semibold text-gray-700 mb-3">
                             Select Patient
                         </label>
-                        <div className="relative">
-                            <Select
-                                id="patient-select"
-                                options={patients.map(p => ({ value: p.id, label: p.name }))}
-                                value={selectedPatient}
-                                onChange={handlePatientSelect}
-                                isLoading={loadingPatients}
-                                className="w-full"
-                                classNamePrefix="react-select"
-                                placeholder="Search and select patient..."
-                                isClearable
-                                isDisabled={loadingPatients || loadingDetails}
-                                styles={customSelectStyles}
-                            />
-                            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-
-                            </div>
-                        </div>
+                        <Select
+                            id="patient-select"
+                            options={patients}
+                            value={selectedPatient}
+                            onChange={handlePatientSelect}
+                            isLoading={loadingPatients}
+                            className="w-full"
+                            classNamePrefix="react-select"
+                            placeholder="Search patient by name..."
+                            isClearable
+                            isDisabled={loadingPatients || loadingDetails}
+                            styles={{
+                                ...customSelectStyles,
+                                option: (provided, state) => ({
+                                    ...provided,
+                                    padding: '8px 12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    backgroundColor: state.isSelected ? '#6366f1' : state.isFocused ? '#f3f4f6' : 'white',
+                                    color: state.isSelected ? 'white' : '#374151',
+                                    '&:hover': {
+                                        backgroundColor: state.isSelected ? '#6366f1' : '#f3f4f6'
+                                    }
+                                }),
+                                singleValue: (provided) => ({
+                                    ...provided,
+                                    fontSize: '1rem',
+                                    color: '#111827'
+                                })
+                            }}
+                            formatOptionLabel={option => (
+                                <div className="flex flex-col">
+                                    <span className="font-medium">{option.label}</span>
+                                    {option.patientData?.dateOfBirth && (
+                                        <span className="text-sm text-gray-500">
+                                            DOB: {formatDate(option.patientData.dateOfBirth)}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            noOptionsMessage={({ inputValue }) => 
+                                inputValue ? "No patients found" : "Type to search patients"
+                            }
+                            filterOption={(option, input) => {
+                                if (!input) return true;
+                                const searchStr = input.toLowerCase();
+                                const label = option.label.toLowerCase();
+                                return label.includes(searchStr);
+                            }}
+                        />
                     </div>
 
-                    {/* Display patient details and bill form only if patientDetails is loaded */}
-                    {patientDetails ? (
-                         loadingDetails ? (
-                             // Show skeleton loader while patient details are loading
-                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-pulse">
-                                 <div className="space-y-6">
-                                     <Skeleton height={24} width={200} />
-                                     <Skeleton height={20} count={5} />
-                                     <Skeleton height={24} width={150} className="mt-6"/>
-                                     <Skeleton height={40} />
-                                     <div className="flex space-x-4">
-                                         <Skeleton height={40} className="flex-1"/>
-                                         <Skeleton height={40} className="flex-1"/>
-                                     </div>
-                                 </div>
-                                 <div className="space-y-6">
-                                     <Skeleton height={24} width={200} />
-                                     <Skeleton height={40} count={3} />
-                                 </div>
-                             </div>
-                         ) : (
-                        // Display patient details and form after loading
+                    {patientDetails && (
+                        <div className="mb-8">
+                            <PatientInfoCard patient={patientDetails} loading={loadingDetails} />
+                        </div>
+                    )}
+
+                    {patientDetails && !loadingDetails ? (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <div className="space-y-6">
-                                <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                                    <svg className="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                    Patient Information
-                                </h3>
-                                <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl shadow-inner">
-                                    <dl className="space-y-4">
-                                        <div className="flex justify-between items-center">
-                                            <dt className="text-sm font-medium text-gray-600">Patient Name</dt>
-                                            <dd className="text-sm font-semibold text-gray-900">
-                                                {patientDetails.name || 'N/A'}
-                                            </dd>
-                                        </div>
-                                        {patientDetails.status === 'active' ? (
-                                            <>
-                                                <div className="flex justify-between items-center">
-                                                    <dt className="text-sm font-medium text-gray-600">Room</dt>
-                                                    <dd className="text-sm font-semibold text-gray-900">
-                                                        {patientDetails.room_number || 'N/A'}
-                                                    </dd>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <dt className="text-sm font-medium text-gray-600">Ward Type</dt>
-                                                    <dd className="text-sm font-semibold text-gray-900 capitalize">
-                                                        {patientDetails.ward_type || 'N/A'}
-                                                    </dd>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <dt className="text-sm font-medium text-gray-600">Attending Physician</dt>
-                                                    <dd className="text-sm font-semibold text-gray-900">
-                                                        {patientDetails.attending_physician || 'N/A'}
-                                                    </dd>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <dt className="text-sm font-medium text-gray-600">Admission Date</dt>
-                                                    <dd className="text-sm font-semibold text-gray-900">
-                                                        {formatDate(patientDetails.admission_date)}
-                                                    </dd>
-                                                </div>
-                                            </>
-                                         ) : (
-                                            <div className="text-sm text-gray-600 italic col-span-2 bg-yellow-50 p-3 rounded-lg">
-                                                No active admission found for this patient (Status: {patientDetails.status || 'N/A'}).
-                                            </div>
-                                         )}
-                                    </dl>
-                                </div>
-
-                                {/* Bill amount input and buttons, only shown if patientDetails loaded AND status is active */}
                                 {patientDetails.status === 'active' && (
                                     <>
                                         <div className="mt-8">
@@ -539,53 +629,26 @@ const PatientBills = () => {
                                                     aria-describedby="amount-currency"
                                                 />
                                                 <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                                                     <span className="text-gray-500 sm:text-sm font-medium" id="amount-currency">
-                                                        PHP
-                                                     </span>
+                                                    <span className="text-gray-500 sm:text-sm font-medium">PHP</span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-4 mt-6">
-                                            <button
-                                                onClick={generatePreview}
-                                                className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                                disabled={!billAmount || loadingDetails || patientDetails.status !== 'active'}
-                                            >
-                                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
-                                                Preview
-                                            </button>
-                                            <button
-                                                onClick={handleSave}
-                                                className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                                disabled={!billAmount || loadingDetails || patientDetails.status !== 'active'}
-                                            >
-                                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                                </svg>
-                                                Save
-                                            </button>
-                                            {pdfUrl && (
-                                                <button
-                                                    onClick={handleDownload}
-                                                    className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center gap-2"
-                                                >
-                                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                    </svg>
-                                                     PDF
-                                                </button>
-                                            )}
+                                        <div className="mt-6">
+                                            <PdfUploadForm 
+                                                patientId={patientDetails.id}
+                                                billAmount={billAmount} // Pass the bill amount
+                                                onUploadSuccess={() => {
+                                                    fetchTransactions(patientDetails.id);
+                                                    updateState({ billAmount: '' }); // Reset the bill amount after successful upload
+                                                }}
+                                            />
                                         </div>
                                     </>
                                 )}
                             </div>
 
-                            {/* Display recent transactions section in the second column */}
-                             {patientDetails && patientDetails.id && (
+                            {patientDetails && patientDetails.id && (
                                 <div className="space-y-6">
                                     <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                                         <svg className="h-6 w-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -602,31 +665,11 @@ const PatientBills = () => {
                                         {recentTransactions.length > 0 ? (
                                             <ul className="divide-y divide-gray-200">
                                                 {recentTransactions.map((transaction, index) => (
-                                                    <li key={transaction.id} className="px-6 py-4 hover:bg-gray-50 transition-colors duration-200">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className={`p-2 rounded-lg ${index % 3 === 0 ? 'bg-indigo-100' : index % 3 === 1 ? 'bg-green-100' : 'bg-blue-100'}`}>
-                                                                    <svg className={`h-5 w-5 ${index % 3 === 0 ? 'text-indigo-600' : index % 3 === 1 ? 'text-green-600' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                                    </svg>
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-sm font-medium text-gray-900">
-                                                                        {transaction.description}
-                                                                    </p>
-                                                                    <p className="text-xs text-gray-500">
-                                                                        {formatDate(transaction.created_at)}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <div className="text-sm font-bold text-gray-900">
-                                                                    ₱{parseFloat(transaction.amount).toLocaleString('en-US')}
-                                                                </div>
-                                                                <div className="text-xs text-gray-500">PHP</div>
-                                                            </div>
-                                                        </div>
-                                                    </li>
+                                                    <TransactionItem 
+                                                        key={transaction.id} 
+                                                        transaction={transaction} 
+                                                        index={index} 
+                                                    />
                                                 ))}
                                             </ul>
                                         ) : (
@@ -640,11 +683,8 @@ const PatientBills = () => {
                                     </div>
                                 </div>
                             )}
-
                         </div>
-                         )
                     ) : (
-                        // Message when no patient is selected and not loading
                         !loadingPatients && !loadingDetails && (
                             <div className="text-center py-12">
                                 <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -657,59 +697,6 @@ const PatientBills = () => {
                     )}
                 </div>
             </div>
-
-            {/* PDF Preview Modal */}
-            {isModalOpen && pdfUrl && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75 backdrop-blur-sm transition-opacity duration-300" onClick={closeModal}>
-                    <div className="relative w-full max-w-4xl h-full max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300" onClick={e => e.stopPropagation()}>
-                        {/* Modal Header */}
-                        <div className="flex justify-between items-center p-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                            <h3 className="text-xl font-semibold flex items-center gap-2">
-                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Progress Bill Preview
-                            </h3>
-                            <button
-                                onClick={closeModal}
-                                className="text-white hover:text-gray-200 transition-colors duration-200"
-                                aria-label="Close modal"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                                </svg>
-                            </button>
-                        </div>
-
-                        {/* Modal Body - PDF Iframe */}
-                        <div className="p-4 h-[calc(90vh-160px)] bg-gray-50"> {/* Adjusted height to account for header and footer */}
-                            <div className="h-full rounded-lg overflow-hidden shadow-inner">
-                                <iframe
-                                    src={pdfUrl}
-                                    className="w-full h-full border-0"
-                                    title="Progress Bill PDF Preview"
-                                    style={{ minHeight: '100%' }}
-                                >
-                                    Your browser does not support iframes.
-                                </iframe>
-                            </div>
-                        </div>
-
-                        {/* Modal Footer with Download Button */}
-                        <div className="flex justify-end p-4 border-t bg-white">
-                            <button
-                                onClick={handleDownload}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center gap-2"
-                            >
-                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Download PDF
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

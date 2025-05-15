@@ -49,7 +49,7 @@ const BillingDashboard = () => {
   };
 
   const wardChartData = {
-    labels: ['Private', 'Semi-Private', 'Ward'],
+    labels: ['Private', 'Semi-Private', 'Ward', 'Executive' , 'Suite'],
     datasets: [{
       data: [
         stats.wardDistribution.private,
@@ -156,6 +156,23 @@ const BillingDashboard = () => {
                   </p>
                   <p className="text-sm text-orange-500 mt-1">Occupied Rooms</p>
                 </div>
+                {/* Executive Ward */}
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-purple-600 mb-2">Executive Ward</h3>
+                  <p className="text-2xl font-bold text-purple-700">
+                    {loading ? <Skeleton width={60} /> : stats.wardDistribution.executive}
+                  </p>
+                  <p className="text-sm text-purple-500 mt-1">Occupied Rooms</p>
+                  </div>
+                {/* Suite Ward */}
+                <div className="bg-pink-50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-pink-600 mb-2">Suite Ward</h3>
+                  <p className="text-2xl font-bold text-pink-700">
+                    {loading ? <Skeleton width={60} /> : stats.wardDistribution.suite}
+                  </p>
+                  <p className="text-sm text-pink-500 mt-1">Occupied Rooms</p>
+                </div>
+
               </div>
             </div>
           </div>

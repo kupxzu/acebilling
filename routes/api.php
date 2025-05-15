@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function ()
     Route::get('/patients/{id}', [PatientController::class, 'show']);
     Route::get('/patients/{id}/details', [PatientController::class, 'details']);
     Route::put('/patients/{id}', [PatientController::class, 'update']);
+    Route::post('/patients/check-exists', [PatientController::class, 'checkExists']);
     
     // QR code and portal access routes
     Route::get('/patients/{id}/qr', [PatientController::class, 'getQR']);
@@ -100,7 +101,6 @@ Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function ()
         Route::get('/patient-charges/{patientId}', [BillingController::class, 'getPatientCharges']);
         
         // Reports
-        Route::get('/reports', [BillingController::class, 'getReports']);
         
         // Transactions
         Route::get('/transactions/{patientId}', [BillingController::class, 'getPatientTransactions']);
@@ -113,5 +113,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/patients/{id}/details', [BillingController::class, 'getPatientDetails']);
         Route::get('/progress/{id}/download', [BillingController::class, 'downloadProgressBill']);
         Route::post('/progress/save', [BillingController::class, 'saveProgressBill']);
+        
+        // Add these new routes
+        Route::post('/upload-pdf', [BillingController::class, 'uploadPdf']);
+        Route::get('/patient-pdfs/{patientId}', [BillingController::class, 'getPatientPdfs']);
     });
+
+    Route::get('/billing/reports', [BillingController::class, 'getReports']);
 });

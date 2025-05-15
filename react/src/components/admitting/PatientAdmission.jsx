@@ -5,6 +5,7 @@ import Navbar from '../Navbar';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { toast } from 'react-toastify'; // Make sure you have this package installed
+import { motion } from 'framer-motion'; // Add this import for animations
 
 const FormFieldSkeleton = () => (
     <div>
@@ -12,6 +13,21 @@ const FormFieldSkeleton = () => (
         <Skeleton height={38} />
     </div>
 );
+
+const checkPatientExists = async (firstName, lastName, middleName, dateOfBirth) => {
+    try {
+        const response = await axiosClient.post('/patients/check-exists', {
+            first_name: firstName,
+            last_name: lastName,
+            middle_name: middleName,
+            date_of_birth: dateOfBirth
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error checking patient:', error);
+        return { exists: false };
+    }
+};
 
 const PatientAdmission = () => {
     const navigate = useNavigate();
@@ -34,66 +50,111 @@ const PatientAdmission = () => {
         qrCodeUrl: '',
         portalUrl: ''
     });
+    const [validationErrors, setValidationErrors] = useState({});
 
-const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess(false);
-    setPortalData({ qrCodeUrl: '', portalUrl: '' });
+    const validateForm = (data) => {
+        const errors = {};
+        if (!data.first_name) errors.first_name = 'First name is required';
+        if (!data.last_name) errors.last_name = 'Last name is required';
+        if (!data.date_of_birth) errors.date_of_birth = 'Date of birth is required';
+        if (!data.room_number) errors.room_number = 'Room number is required';
+        if (!data.attending_physician) errors.attending_physician = 'Attending physician is required';
+        return errors;
+    };
 
-    try {
-        // Step 1: Admit the patient
-        const response = await axiosClient.post('/patients/admit', formData);
-        
-        if (response.data.status && response.data.id) {
-            const patientId = response.data.id;
-            setSuccess(true);
-            toast.success('Patient admitted successfully!');
-            
-            // Step 2: Generate portal access
-            try {
-                const portalResponse = await axiosClient.post(`/patients/${patientId}/generate-portal-access`);
-                
-                if (portalResponse.data.status) {
-                    setPortalData({
-                        qrCodeUrl: portalResponse.data.qrCodeUrl,
-                        portalUrl: portalResponse.data.portalUrl
-                    });
-                }
-            } catch (portalErr) {
-                console.warn('Could not generate portal access:', portalErr);
-                // Continue anyway since the patient was created successfully
-            }
-            
-            // Reset form
-            setFormData({
-                first_name: '',
-                last_name: '',
-                middle_name: '',
-                name_initial: '',
-                date_of_birth: new Date().toISOString().split('T')[0],
-                room_number: '',
-                ward_type: 'ward',
-                attending_physician: '',
-                admission_date: new Date().toISOString().split('T')[0],
-                remarks: ''
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // Validate form
+        const validationErrors = validateForm(formData);
+        if (Object.keys(validationErrors).length > 0) {
+            Object.values(validationErrors).forEach(error => {
+                toast.error(error);
             });
-        } else {
-            throw new Error(response.data.message || 'Failed to admit patient');
+            setValidationErrors(validationErrors);
+            return;
         }
-    } catch (err) {
-        setError(err.response?.data?.message || err.message || 'Failed to admit patient');
-        console.error('Admission error:', err);
-    } finally {
-        setLoading(false);
-    }
-};
+
+        // Check if patient already exists
+        const patientCheck = await checkPatientExists(
+            formData.first_name,
+            formData.last_name,
+            formData.middle_name,
+            formData.date_of_birth
+        );
+
+        if (patientCheck.exists) {
+            toast.error('A patient with these details already exists');
+            setValidationErrors({
+                ...validationErrors,
+                existingPatient: 'Patient already exists'
+            });
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        setSuccess(false);
+        setPortalData({ qrCodeUrl: '', portalUrl: '' });
+
+        try {
+            // Step 1: Admit the patient
+            const response = await axiosClient.post('/patients/admit', formData);
+
+            if (response.data.status && response.data.id) {
+                const patientId = response.data.id;
+                setSuccess(true);
+                toast.success('Patient admitted successfully!');
+
+                // Step 2: Generate portal access
+                try {
+                    const portalResponse = await axiosClient.post(`/patients/${patientId}/generate-portal-access`);
+
+                    if (portalResponse.data.status) {
+                        setPortalData({
+                            qrCodeUrl: portalResponse.data.qrCodeUrl,
+                            portalUrl: portalResponse.data.portalUrl
+                        });
+                    }
+                } catch (portalErr) {
+                    console.warn('Could not generate portal access:', portalErr);
+                    // Continue anyway since the patient was created successfully
+                }
+
+                // Reset form
+                setFormData({
+                    first_name: '',
+                    last_name: '',
+                    middle_name: '',
+                    name_initial: '',
+                    date_of_birth: new Date().toISOString().split('T')[0],
+                    room_number: '',
+                    ward_type: 'ward',
+                    attending_physician: '',
+                    admission_date: new Date().toISOString().split('T')[0],
+                    remarks: ''
+                });
+            } else {
+                throw new Error(response.data.message || 'Failed to admit patient');
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || err.message || 'Failed to admit patient');
+            console.error('Admission error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
             <Navbar />
-            <div className="max-w-4xl mx-auto p-6">
-                <div className="flex justify-between items-center mb-6">
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="max-w-5xl mx-auto p-6"
+            >
+                {/* Header Section */}
+                <div className="flex justify-between items-center mb-8">
                     {loading ? (
                         <>
                             <Skeleton width={250} height={32} />
@@ -101,199 +162,212 @@ const handleSubmit = async (e) => {
                         </>
                     ) : (
                         <>
-                            <h2 className="text-2xl font-bold text-gray-800">New Patient Admission</h2>
+                            <div>
+                                <h2 className="text-3xl font-bold text-gray-900">New Patient Admission</h2>
+                                <p className="text-gray-600 mt-1">Enter patient details to begin admission process</p>
+                            </div>
                             <button
                                 onClick={() => navigate('/admitting/patients')}
-                                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
+                                <svg className="h-5 w-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                                </svg>
                                 View All Patients
                             </button>
                         </>
                     )}
                 </div>
-                
-                {error && (
-                    <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                </svg>
+
+                {/* Alert Messages */}
+                <div className="space-y-4 mb-6">
+                    {error && (
+                        <motion.div 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-md"
+                        >
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-red-700">{error}</p>
+                                </div>
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-red-700">{error}</p>
+                        </motion.div>
+                    )}
+
+                    {success && (
+                        <motion.div 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-md"
+                        >
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-green-700">Patient admitted successfully!</p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </div>
+
+                {/* Main Form */}
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    {/* Personal Information Section */}
+                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Personal Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    First Name
+                                    <span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.first_name}
+                                    onChange={e => setFormData({...formData, first_name: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Last Name
+                                    <span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.last_name}
+                                    onChange={e => setFormData({...formData, last_name: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Middle Name
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.middle_name}
+                                    onChange={e => setFormData({...formData, middle_name: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Name Initial
+                                </label>
+                                <input
+                                    type="text"
+                                    maxLength={10}
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.name_initial}
+                                    onChange={e => setFormData({...formData, name_initial: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Date of Birth
+                                    <span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.date_of_birth}
+                                    onChange={e => setFormData({...formData, date_of_birth: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Admission Date
+                                    <span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.admission_date}
+                                    onChange={e => setFormData({...formData, admission_date: e.target.value})}
+                                />
                             </div>
                         </div>
                     </div>
-                )}
 
-                {success && (
-                    <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
+                    {/* Admission Details Section */}
+                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Admission Details</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Room Number
+                                    <span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.room_number}
+                                    onChange={e => setFormData({...formData, room_number: e.target.value})}
+                                />
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-green-700">Patient admitted successfully!</p>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Ward Type
+                                </label>
+                                <select
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.ward_type}
+                                    onChange={e => setFormData({...formData, ward_type: e.target.value})}
+                                >
+                                    <option value="ward">Ward</option>
+                                    <option value="semi-private">Semi-Private</option>
+                                    <option value="private">Private</option>
+                                    <option value="executive">Executive</option>
+                                    <option value="suite">Suite</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Attending Physician
+                                    <span className="text-red-500 ml-1">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.attending_physician}
+                                    onChange={e => setFormData({...formData, attending_physician: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Remarks
+                                </label>
+                                <textarea
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-150"
+                                    value={formData.remarks}
+                                    onChange={e => setFormData({...formData, remarks: e.target.value})}
+                                    rows="3"
+                                />
                             </div>
                         </div>
                     </div>
-                )}
 
-                <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow-sm rounded-lg p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Form Actions */}
+                    <div className="flex justify-end space-x-4">
                         {loading ? (
-                            <>
-                                <FormFieldSkeleton />
-                                <FormFieldSkeleton />
-                                <FormFieldSkeleton />
-                                <FormFieldSkeleton />
-                                <FormFieldSkeleton />
-                                <FormFieldSkeleton />
-                            </>
-                        ) : (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        First Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.first_name}
-                                        onChange={e => setFormData({...formData, first_name: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Last Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.last_name}
-                                        onChange={e => setFormData({...formData, last_name: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Middle Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.middle_name}
-                                        onChange={e => setFormData({...formData, middle_name: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Name Initial
-                                    </label>
-                                    <input
-                                        type="text"
-                                        maxLength={10}
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.name_initial}
-                                        onChange={e => setFormData({...formData, name_initial: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Date of Birth
-                                    </label>
-                                    <input
-                                        type="date"
-                                        required
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.date_of_birth}
-                                        onChange={e => setFormData({...formData, date_of_birth: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Admission Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        required
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.admission_date}
-                                        onChange={e => setFormData({...formData, admission_date: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Room Number
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.room_number}
-                                        onChange={e => setFormData({...formData, room_number: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Ward Type
-                                    </label>
-                                    <select
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.ward_type}
-                                        onChange={e => setFormData({...formData, ward_type: e.target.value})}
-                                    >
-                                        <option value="ward">Ward</option>
-                                        <option value="semi-private">Semi-Private</option>
-                                        <option value="private">Private</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Attending Physician
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.attending_physician}
-                                        onChange={e => setFormData({...formData, attending_physician: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Remarks
-                                    </label>
-                                    <textarea
-                                        className="w-full border rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                        value={formData.remarks}
-                                        onChange={e => setFormData({...formData, remarks: e.target.value})}
-                                        rows="3"
-                                    />
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="flex justify-end space-x-3">
-                        {loading ? (
-                            <>
-                                <Skeleton width={100} height={40} className="rounded-md" />
-                                <Skeleton width={120} height={40} className="rounded-md" />
-                            </>
+                            <Skeleton width={200} height={42} className="rounded-md" />
                         ) : (
                             <>
                                 <button
@@ -310,14 +384,14 @@ const handleSubmit = async (e) => {
                                         admission_date: new Date().toISOString().split('T')[0],
                                         remarks: ''
                                     })}
-                                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                                    className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-150"
                                 >
                                     Clear Form
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition duration-150"
                                 >
                                     {loading ? (
                                         <span className="flex items-center">
@@ -336,9 +410,13 @@ const handleSubmit = async (e) => {
                     </div>
                 </form>
 
-                {/* Portal Access Card */}
+                {/* Portal Access Card with enhanced styling */}
                 {portalData.qrCodeUrl && (
-                    <div className="mt-6 bg-white p-6 rounded-lg shadow-sm text-center">
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-8 bg-white rounded-xl shadow-sm p-8 border border-gray-100"
+                    >
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Patient Portal Access</h3>
                         <div className="flex justify-center mb-4">
                             <img 
@@ -367,7 +445,7 @@ const handleSubmit = async (e) => {
                                         title="Copy link"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a3 3 0 003-3v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                                         </svg>
                                     </button>
                                 </div>
@@ -408,9 +486,9 @@ const handleSubmit = async (e) => {
                                 Close
                             </button>
                         </div>
-                    </div>
+                    </motion.div>
                 )}
-            </div>
+            </motion.div>
         </div>
     );
 };

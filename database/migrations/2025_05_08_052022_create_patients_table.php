@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name_initial', 10)->nullable();
             $table->date('date_of_birth');
             $table->string('room_number');
-            $table->enum('ward_type', ['private', 'semi-private', 'ward']);
+            $table->enum('ward_type', ['private', 'semi-private', 'ward', 'executive' , 'suite']);
             $table->string('attending_physician');
             $table->string('qr_code')->nullable();
             $table->timestamps();

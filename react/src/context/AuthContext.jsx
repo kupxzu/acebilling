@@ -1,5 +1,6 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import axiosClient from '../utils/axios';
+import axios from 'axios';
 
 const AuthContext = createContext({});
 
@@ -51,33 +52,45 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = async (email, password, remember = false) => {
-        const response = await axiosClient.post("/login", { email, password, remember });
-        const { data } = response;
-        
-        if (data && data.token) {
-            // Set the user state immediately
-            setUser(data.data);
-            setLoading(false);
-            
-            // Always use localStorage but with different expiration times
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.data));
-            
-            if (remember) {
-                // If "remember me" is checked, set expiration for 30 days
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 30);
-                localStorage.setItem('tokenExpiry', expiry.toISOString());
-            } else {
-                // If not checked, set expiration for 1 hour
-                const expiry = new Date();
-                expiry.setHours(expiry.getHours() + 1);
-                localStorage.setItem('tokenExpiry', expiry.toISOString());
+        try {
+            // Get CSRF cookie first
+            await axios.get('/sanctum/csrf-cookie', { withCredentials: true });
+
+            const response = await axiosClient.post('/login', {
+                email,
+                password,
+                remember
+            });
+
+            if (response.data.status) {
+                const { token, data: user } = response.data;
+                
+                // Store auth data
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                // Handle remember me
+                if (remember) {
+                    // Set expiry to 30 days
+                    const expiry = new Date();
+                    expiry.setDate(expiry.getDate() + 30);
+                    localStorage.setItem('tokenExpiry', expiry.toISOString());
+                } else {
+                    // Set expiry to 24 hours
+                    const expiry = new Date();
+                    expiry.setHours(expiry.getHours() + 24);
+                    localStorage.setItem('tokenExpiry', expiry.toISOString());
+                }
+
+                setUser(user);
+                return user;
             }
             
-            return data.data;
+            throw new Error('Invalid response from server');
+        } catch (error) {
+            console.error('Login error:', error);
+            throw error;
         }
-        throw new Error('Invalid response from server');
     };
 
     const logout = async () => {

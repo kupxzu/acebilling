@@ -13,10 +13,12 @@ class Billing extends Model
     protected $fillable = [
         'admission_id',
         'description',
-        'category',
         'amount',
-        'status',
-        'remarks'
+        'total_amount',
+        'remarks',
+        'pdf_file',
+        'pdf_path',
+        'pdf_original_name'
     ];
 
     protected $casts = [

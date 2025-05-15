@@ -64,7 +64,7 @@ const AdmittingDashboard = () => {
       }]
     },
     wardDistribution: {
-      labels: ['Private', 'Semi-Private', 'Ward'],
+      labels: ['Private', 'Semi-Private', 'Ward', 'Executive' , 'Suite'],
       datasets: [{
         data: [0, 0, 0],
         backgroundColor: [
@@ -166,7 +166,7 @@ const AdmittingDashboard = () => {
         }]
       },
       wardDistribution: {
-        labels: ['Private', 'Semi-Private', 'Ward'],
+        labels: ['Private', 'Semi-Private', 'Ward', 'Executive' , 'Suite'],
         datasets: [{
           data: [
             data.wardDistribution?.private || 0,
