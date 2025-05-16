@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../utils/axios';
 import Navbar from '../Navbar';
@@ -6,6 +6,7 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Avatar from '../common/Avatar';
 import { toast } from 'react-toastify';
+import { debounce } from 'lodash'; // Make sure to import debounce from lodash
 
 const PatientCard = ({ loading, patient }) => {
     const navigate = useNavigate();
@@ -99,7 +100,7 @@ const PatientCard = ({ loading, patient }) => {
                                 {`${patient.first_name} ${patient.middle_name ? patient.middle_name + ' ' : ''}${patient.last_name}`}
                             </h3>
                             <p className="text-sm text-gray-500 flex items-center mt-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-4">
                                 <path d="m4.75 1-.884.884a1.25 1.25 0 1 0 1.768 0L4.75 1ZM11.25 1l-.884.884a1.25 1.25 0 1 0 1.768 0L11.25 1ZM8.884 1.884 8 1l-.884.884a1.25 1.25 0 1 0 1.768 0ZM4 7a2 2 0 0 0-2 2v1.034c.347 0 .694-.056 1.028-.167l.47-.157a4.75 4.75 0 0 1 3.004 0l.47.157a3.25 3.25 0 0 0 2.056 0l.47-.157a4.75 4.75 0 0 1 3.004 0l.47.157c.334.111.681.167 1.028.167V9a2 2 0 0 0-2-2V5.75a.75.75 0 0 0-1.5 0V7H8.75V5.75a.75.75 0 0 0-1.5 0V7H5.5V5.75a.75.75 0 0 0-1.5 0V7ZM14 11.534a4.749 4.749 0 0 1-1.502-.244l-.47-.157a3.25 3.25 0 0 0-2.056 0l-.47.157a4.75 4.75 0 0 1-3.004 0l-.47-.157a3.25 3.25 0 0 0-2.056 0l-.47.157A4.748 4.748 0 0 1 2 11.534V13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1.466Z" />
                                 </svg> 
                                 {patient.date_of_birth && new Date(patient.date_of_birth).toLocaleDateString()}
@@ -176,7 +177,7 @@ const PatientCard = ({ loading, patient }) => {
     );
 };
 
-const EmptyState = () => (
+const EmptyState = ({ navigate }) => (
     <div className="col-span-3 bg-white rounded-xl shadow-sm p-12 text-center">
         <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
             <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -209,20 +210,20 @@ const PatientList = () => {
         total: 0
     });
     const [searchTerm, setSearchTerm] = useState('');
-    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearchTerm(searchTerm);
-        }, 500);
+    // Create a memoized debounced fetch function that only executes after typing stops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const debouncedFetch = useCallback(
+        debounce((searchValue, page = 1) => {
+            fetchPatients(page, searchValue);
+        }, 500),
+        [] // Empty dependency array ensures this is only created once
+    );
 
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
-
-    const fetchPatients = async (page = 1) => {
+    const fetchPatients = async (page = 1, search = searchTerm) => {
         setLoading(true);
         try {
-            const response = await axiosClient.get(`/patients?page=${page}&search=${debouncedSearchTerm}`);
+            const response = await axiosClient.get(`/patients?page=${page}&search=${search}`);
             if (response.data.status) {
                 setPatients(response.data.data.data);
                 const { data, ...paginationData } = response.data.data;
@@ -239,13 +240,30 @@ const PatientList = () => {
         }
     };
 
+    // Initial load - this only runs once when component mounts
     useEffect(() => {
-        fetchPatients();
+        fetchPatients(1, '');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Handle search changes with debounce to prevent multiple API calls
     useEffect(() => {
-        fetchPatients(1);
-    }, [debouncedSearchTerm]);
+        // Only trigger the debounced fetch when searchTerm changes
+        debouncedFetch(searchTerm, 1);
+        
+        // Cancel the debounced function on cleanup
+        return () => {
+            debouncedFetch.cancel();
+        };
+    }, [searchTerm, debouncedFetch]);
+
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+    };
+
+    const handlePageChange = (page) => {
+        fetchPatients(page, searchTerm);
+    };
 
     const renderPagination = () => {
         const pages = [];
@@ -261,7 +279,7 @@ const PatientList = () => {
             pages.push(
                 <button
                     key="1"
-                    onClick={() => fetchPatients(1)}
+                    onClick={() => handlePageChange(1)}
                     className="px-3 py-1 rounded-md bg-white text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                     1
@@ -280,7 +298,7 @@ const PatientList = () => {
             pages.push(
                 <button
                     key={i}
-                    onClick={() => fetchPatients(i)}
+                    onClick={() => handlePageChange(i)}
                     className={`px-3 py-1 rounded-md transition-all duration-200 ${
                         pagination.current_page === i
                             ? 'bg-indigo-600 text-white shadow-md'
@@ -303,7 +321,7 @@ const PatientList = () => {
             pages.push(
                 <button
                     key={pagination.last_page}
-                    onClick={() => fetchPatients(pagination.last_page)}
+                    onClick={() => handlePageChange(pagination.last_page)}
                     className="px-3 py-1 rounded-md bg-white text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                     {pagination.last_page}
@@ -349,7 +367,7 @@ const PatientList = () => {
                             type="text"
                             placeholder="Search patients by name, room number, or physician..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={handleSearchChange}
                             className="w-full px-4 py-3 pl-12 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 shadow-sm"
                         />
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -394,13 +412,13 @@ const PatientList = () => {
                         ? patients.map((patient) => (
                               <PatientCard key={patient.id} loading={false} patient={patient} />
                           ))
-                        : !loading && <EmptyState />}
+                        : !loading && <EmptyState navigate={navigate} />}
                 </div>
 
                 {!loading && pagination.last_page > 1 && (
                     <div className="mt-8 flex justify-center items-center space-x-2">
                         <button
-                            onClick={() => fetchPatients(Math.max(1, pagination.current_page - 1))}
+                            onClick={() => handlePageChange(Math.max(1, pagination.current_page - 1))}
                             disabled={pagination.current_page === 1}
                             className="p-2 rounded-md bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                         >
@@ -412,7 +430,7 @@ const PatientList = () => {
                             {renderPagination()}
                         </div>
                         <button
-                            onClick={() => fetchPatients(Math.min(pagination.last_page, pagination.current_page + 1))}
+                            onClick={() => handlePageChange(Math.min(pagination.last_page, pagination.current_page + 1))}
                             disabled={pagination.current_page === pagination.last_page}
                             className="p-2 rounded-md bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                         >

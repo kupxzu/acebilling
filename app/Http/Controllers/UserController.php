@@ -256,7 +256,7 @@ class UserController extends Controller
             // Create reset URL
             $frontendUrl = config('app.frontend_url');
             if (!$frontendUrl) {
-                $frontendUrl = 'http://localhost:1000'; // Fallback URL
+                $frontendUrl = 'http://172.16.2.196:8080'; // Fallback URL
                 Log::warning('APP_FRONTEND_URL not configured, using fallback');
             }
             

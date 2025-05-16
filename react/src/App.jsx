@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -83,7 +83,8 @@ const billingRoutes = [
   }
 ];
 
-const router = createBrowserRouter([
+// Change from createBrowserRouter to createHashRouter
+const router = createHashRouter([
   ...authRoutes,
   ...admittingRoutes,
   ...billingRoutes,
