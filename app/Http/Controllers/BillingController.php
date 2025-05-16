@@ -59,7 +59,9 @@ class BillingController extends Controller
                     'wardDistribution' => [
                         'private' => $wardDistribution['private'] ?? 0,
                         'semiPrivate' => $wardDistribution['semiPrivate'] ?? 0,
-                        'ward' => $wardDistribution['ward'] ?? 0
+                        'ward' => $wardDistribution['ward'] ?? 0,
+                        'executive' => $wardDistribution['executive'] ?? 0,
+                        'suite' => $wardDistribution['suite'] ?? 0,
                     ]
                 ]
             ]);

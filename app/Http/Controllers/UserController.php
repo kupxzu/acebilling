@@ -13,9 +13,13 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ResetPasswordMail;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
+    /**
+     * Register a new user
+     */
     public function register(Request $request)
     {
         try {
@@ -51,6 +55,11 @@ class UserController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
+            Log::error('Registration failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'status' => false,
                 'message' => 'Registration failed',
@@ -59,8 +68,15 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * User login - API token based without CSRF requirements
+     */
     public function login(Request $request)
     {
+        Log::debug('Login attempt', [
+            'email' => $request->email
+        ]);
+        
         try {
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email',
@@ -69,6 +85,10 @@ class UserController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::debug('Login validation failed', [
+                    'errors' => $validator->errors()->toArray()
+                ]);
+                
                 return response()->json([
                     'status' => false,
                     'message' => 'Validation Error',
@@ -76,17 +96,23 @@ class UserController extends Controller
                 ], 422);
             }
 
-            $credentials = $request->only('email', 'password');
-            $remember = $request->boolean('remember', false);
-
-            if (!Auth::attempt($credentials, $remember)) {
+            // Validate credentials directly instead of using Auth::attempt
+            // This avoids the CSRF token requirement
+            $user = User::where('email', $request->email)->first();
+            
+            if (!$user || !Hash::check($request->password, $user->password)) {
+                Log::debug('Authentication failed - invalid credentials', [
+                    'email' => $request->email
+                ]);
+                
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid login credentials'
                 ], 401);
             }
-
-            $user = User::where('email', $request->email)->firstOrFail();
+            
+            // Remember me logic
+            $remember = $request->boolean('remember', false);
             
             // Revoke all existing tokens
             $user->tokens()->delete();
@@ -94,6 +120,13 @@ class UserController extends Controller
             // Create new token with expiration based on remember me
             $expiration = $remember ? now()->addDays(30) : now()->addDay();
             $token = $user->createToken('auth_token', ['*'], $expiration)->plainTextToken;
+
+            Log::debug('Login successful', [
+                'user_id' => $user->id,
+                'role' => $user->role,
+                'remember' => $remember,
+                'token_created' => true
+            ]);
 
             return response()->json([
                 'status' => true,
@@ -104,6 +137,12 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Login exception', [
+                'email' => $request->email ?? 'not provided',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'status' => false,
                 'message' => 'Login failed',
@@ -112,10 +151,20 @@ class UserController extends Controller
         }
     }
 
-    public function logout()
+    /**
+     * Logout user - token based
+     */
+    public function logout(Request $request)
     {
         try {
-            auth()->user()->tokens()->delete();
+            Log::debug('Logout attempt', [
+                'user_id' => $request->user()->id ?? 'unknown'
+            ]);
+            
+            // Revoke the token that was used to authenticate
+            if ($request->user()) {
+                $request->user()->currentAccessToken()->delete();
+            }
             
             return response()->json([
                 'status' => true,
@@ -123,6 +172,11 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Logout failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'status' => false,
                 'message' => 'Logout failed',
@@ -130,17 +184,24 @@ class UserController extends Controller
             ], 500);
         }
     }
-
-    public function profile()
+    /**
+     * Get user profile
+     */
+    public function profile(Request $request)
     {
         try {
             return response()->json([
                 'status' => true,
                 'message' => 'Profile retrieved successfully',
-                'data' => auth()->user()
+                'data' => $request->user()
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Profile retrieval failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to retrieve profile',
@@ -149,9 +210,12 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * Send password reset link
+     */
     public function forgotPassword(Request $request)
     {
-        \Log::info('Forgot password request received', ['email' => $request->email]);
+        Log::info('Forgot password request received', ['email' => $request->email]);
         
         try {
             $validator = Validator::make($request->all(), [
@@ -159,7 +223,7 @@ class UserController extends Controller
             ]);
 
             if ($validator->fails()) {
-                \Log::error('Forgot password validation failed', [
+                Log::error('Forgot password validation failed', [
                     'errors' => $validator->errors()->toArray()
                 ]);
                 return response()->json([
@@ -171,7 +235,7 @@ class UserController extends Controller
 
             // Generate token
             $token = Str::random(64);
-            \Log::info('Token generated', ['token' => $token]);
+            Log::info('Token generated');
             
             // Delete any existing password reset tokens for this email
             DB::table('password_reset_tokens')->where('email', $request->email)->delete();
@@ -183,25 +247,25 @@ class UserController extends Controller
                 'created_at' => Carbon::now()
             ]);
             
-            \Log::info('Token saved to database');
+            Log::info('Token saved to database');
 
             // Get the user
             $user = User::where('email', $request->email)->first();
-            \Log::info('User found', ['user_id' => $user->id]);
+            Log::info('User found', ['user_id' => $user->id]);
 
             // Create reset URL
             $frontendUrl = config('app.frontend_url');
             if (!$frontendUrl) {
-                $frontendUrl = 'http://localhost:3000'; // Fallback URL
-                \Log::warning('APP_FRONTEND_URL not configured, using fallback');
+                $frontendUrl = 'http://localhost:1000'; // Fallback URL
+                Log::warning('APP_FRONTEND_URL not configured, using fallback');
             }
             
             $resetUrl = $frontendUrl . '/reset-password/' . $token;
-            \Log::info('Reset URL created', ['url' => $resetUrl]);
+            Log::info('Reset URL created');
             
             // Check if mail class exists
             if (!class_exists('App\Mail\ResetPasswordMail')) {
-                \Log::error('ResetPasswordMail class not found');
+                Log::error('ResetPasswordMail class not found');
                 
                 // Use a simple mail instead
                 Mail::send('emails.reset-password', [
@@ -216,7 +280,7 @@ class UserController extends Controller
                 Mail::to($request->email)->send(new ResetPasswordMail($user, $resetUrl));
             }
             
-            \Log::info('Email sent successfully');
+            Log::info('Email sent successfully');
 
             return response()->json([
                 'status' => true,
@@ -228,7 +292,7 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Password reset failed', [
+            Log::error('Password reset failed', [
                 'email' => $request->email ?? 'not provided',
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -242,6 +306,9 @@ class UserController extends Controller
         }
     }
 
+    /**
+     * Reset password
+     */
     public function resetPassword(Request $request)
     {
         try {
@@ -291,6 +358,12 @@ class UserController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Reset password failed', [
+                'email' => $request->email ?? 'not provided',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'status' => false,
                 'message' => 'Failed to reset password',

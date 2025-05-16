@@ -28,13 +28,6 @@ class Billing extends Model
         'deleted_at' => 'datetime'
     ];
 
-    public static $categories = [
-        'room',
-        'medicine',
-        'laboratory',
-        'professional_fee',
-        'others'
-    ];
 
     public static $statuses = [
         'pending',

@@ -30,10 +30,18 @@ Route::post('/reset-password', [UserController::class, 'resetPassword']);
 Route::get('/portal/patient/{hash}', [PatientController::class, 'getPortalData']);
 Route::get('/p/{hash}', [PatientController::class, 'showPortal'])->name('patient.portal');
 
+// Debug API health check
+Route::get('/health', function() {
+    return response()->json([
+        'status' => 'ok',
+        'message' => 'API is working',
+        'timestamp' => now()->toISOString(),
+        'environment' => config('app.env')
+    ]);
+});
 
 // --- PROTECTED ROUTES ---
-Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function () {
-
+Route::middleware(['auth:sanctum'])->group(function () {
     // User Management
     Route::post('/logout', [UserController::class, 'logout']);
     Route::get('/profile', [UserController::class, 'profile']);
@@ -42,8 +50,6 @@ Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function ()
     });
 
     // Dashboard
-    // Note: Moved '/dashboard/stats' here as it likely requires authentication.
-    // If it's truly public, move it outside this auth group.
     Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
     // Patient Management
@@ -56,9 +62,9 @@ Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function ()
         Route::put('/{id}', [PatientController::class, 'update']);
         Route::post('/check-exists', [PatientController::class, 'checkExists']);
 
-        // QR Code and Portal Access (Patient Specific)
+        // QR Code and Portal Access
         Route::get('/{id}/qr', [PatientController::class, 'getQR']);
-        Route::post('/{patient}/generate-qr', [PatientController::class, 'generateQR']); // Note: {patient} implies ID
+        Route::post('/{patient}/generate-qr', [PatientController::class, 'generateQR']);
         Route::get('/{id}/portal-access', [PatientController::class, 'getPortalAccess']);
         Route::post('/{id}/generate-portal-access', [PatientController::class, 'generatePortalAccess']);
     });
@@ -66,27 +72,26 @@ Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function ()
     // Billing Management
     Route::prefix('billing')->group(function () {
         // Billing Dashboard
-        Route::get('/dashboard', [BillingController::class, 'dashboard']); // Main billing dashboard data
-        Route::get('/dashboard-stats', [BillingController::class, 'getDashboardStats']); // Specific stats for billing dashboard
+        Route::get('/dashboard', [BillingController::class, 'dashboard']);
+        Route::get('/dashboard-stats', [BillingController::class, 'getDashboardStats']);
 
-        // Patient Lists for Billing Context
-        Route::get('/patients', [BillingController::class, 'getPatients']); // Paginated list of patients with bill summaries
-        Route::get('/active-patients', [BillingController::class, 'getActivePatients']); // List of active patients for selection
+        // Patient Lists for Billing
+        Route::get('/patients', [BillingController::class, 'getPatients']);
+        Route::get('/active-patients', [BillingController::class, 'getActivePatients']);
 
-        // Statement of Account (SOA) and Progress Bills
-        Route::get('/soa/{id}', [BillingController::class, 'getSOA']); // {id} is likely admission_id
+        // SOA and Progress Bills
+        Route::get('/soa/{id}', [BillingController::class, 'getSOA']);
         Route::get('/soa/{id}/download', [BillingController::class, 'downloadSOA']);
-        Route::get('/progress/{id}', [BillingController::class, 'getProgressBill']); // {id} is likely admission_id
-        Route::get('/progress/{id}/download', [BillingController::class, 'downloadProgressBill']); // {id} is patient_id for this one based on controller
+        Route::get('/progress/{id}', [BillingController::class, 'getProgressBill']);
+        Route::get('/progress/{id}/download', [BillingController::class, 'downloadProgressBill']);
         Route::post('/progress/save', [BillingController::class, 'saveProgressBill']);
 
         // Charges
-        Route::post('/charges/{id}', [BillingController::class, 'addCharge']); // {id} is likely admission_id
-        Route::patch('/charges/{id}/status', [BillingController::class, 'updateChargeStatus']); // {id} is billing_id (charge_id)
-        // Removed redundant POST for '/charges/{id}/status'
+        Route::post('/charges/{id}', [BillingController::class, 'addCharge']);
+        Route::patch('/charges/{id}/status', [BillingController::class, 'updateChargeStatus']);
         Route::get('/patient-charges/{patientId}', [BillingController::class, 'getPatientCharges']);
 
-        // Transactions / Billing History
+        // Transactions
         Route::get('/transactions/{patientId}', [BillingController::class, 'getPatientTransactions']);
 
         // PDF Upload and Retrieval
@@ -97,9 +102,3 @@ Route::middleware(['auth:sanctum', 'check.token.expiration'])->group(function ()
         Route::get('/reports', [BillingController::class, 'getReports']);
     });
 });
-
-// Note: The route GET /billing/patients/{id}/details from the second auth group was removed.
-// The existing GET /patients/{id}/details (PatientController@details) is assumed to be the correct one
-// for fetching general patient details.
-// If BillingController needs a specific patient detail view, a new method and route should be defined.
-

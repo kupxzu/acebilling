@@ -31,7 +31,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src')
+      '@': path.resolve(__dirname, 'src'),
+      '@components': path.resolve(__dirname, 'src/components'),
+      '@utils': path.resolve(__dirname, 'src/utils'),
+      '@assets': path.resolve(__dirname, 'src/assets'),
     }
   },
   build: {
@@ -41,75 +44,44 @@ export default defineConfig({
     sourcemap: false,
     outDir: 'dist',
     chunkSizeWarningLimit: 500,
-  },
-  server: {
-    port: 3000,
-    open: true,
-    strictPort: true,
-    hmr: {
-      overlay: true,
-    },
-    proxy: {
-      '/api': {
-        target: 'http://billing.test/api',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
-            proxyReq.setHeader('Accept', 'application/json');
-            
-            // Important: Forward cookies for Sanctum
-            const cookies = req.headers.cookie;
-            if (cookies) {
-              proxyReq.setHeader('Cookie', cookies);
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor';
             }
-            
-            // Forward the authorization header
-            const token = req.headers.authorization;
-            if (token) {
-              proxyReq.setHeader('Authorization', token);
+            if (id.includes('@headlessui') || id.includes('@heroicons')) {
+              return 'ui';
             }
-          });
-          proxy.on('proxyRes', (proxyRes, req, res) => {
-            // Forward cookies from Laravel
-            const setCookies = proxyRes.headers['set-cookie'];
-            if (setCookies) {
-              res.setHeader('Set-Cookie', setCookies);
+            if (id.includes('chart.js') || id.includes('react-chartjs-2')) {
+              return 'charts';
             }
-          });
-        }
-      },
-      '/sanctum': {
-        target: 'http://billing.test',
-        changeOrigin: true,
-        secure: false,
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            // Add necessary headers for Sanctum
-            proxyReq.setHeader('X-Requested-With', 'XMLHttpRequest');
-            proxyReq.setHeader('Accept', 'application/json');
-            
-            // Forward cookies
-            const cookies = req.headers.cookie;
-            if (cookies) {
-              proxyReq.setHeader('Cookie', cookies);
-            }
-          });
-          proxy.on('proxyRes', (proxyRes, req, res) => {
-            // Forward cookies from Laravel
-            const setCookies = proxyRes.headers['set-cookie'];
-            if (setCookies) {
-              res.setHeader('Set-Cookie', setCookies);
-            }
-          });
+          }
         }
       }
     }
   },
+  //   server: {
+  //   port: 3000,
+  //   open: true,
+  //   strictPort: true,
+  //   host: true,
+  //   hmr: {
+  //     overlay: true,
+  //     clientPort: 3000
+  //   },
+  // },
   optimizeDeps: {
-    include: ['react', 'react-dom'],
+    include: [
+      'react', 
+      'react-dom',
+      'react-router-dom',
+      'chart.js',
+      'react-chartjs-2',
+      '@headlessui/react',
+      '@heroicons/react'
+    ],
     esbuildOptions: {
       target: 'esnext'
     }

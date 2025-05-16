@@ -244,7 +244,7 @@ class PatientController extends Controller
                 });
             });
 
-        $patients = $query->latest()->paginate($request->input('per_page', 9));
+        $patients = $query->latest()->paginate($request->input('per_page', 6));
 
         return response()->json([
             'status' => true,

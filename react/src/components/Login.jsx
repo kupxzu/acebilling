@@ -1,51 +1,92 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import AnimatedBackground from './common/AnimatedBackground';
+import { toast } from 'react-toastify';
+import { auth } from '../utils/axios';
 
 const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { login } = useAuth();
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+        remember: false
+    });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [remember, setRemember] = useState(false);
 
+    // Check for remembered credentials
+    useEffect(() => {
+        const rememberedEmail = localStorage.getItem('remembered_email');
+        if (rememberedEmail) {
+            setFormData(prev => ({
+                ...prev,
+                email: rememberedEmail,
+                remember: true
+            }));
+        }
+    }, []);
+
+    // Check if already authenticated
+    useEffect(() => {
+        if (auth.isAuthenticated()) {
+            const user = auth.getUser();
+            const redirect = user?.role === 'billing' ? '/billing' : '/admitting';
+            navigate(redirect, { replace: true });
+        }
+    }, [navigate]);
+
+    // Handle form submission
     const handleSubmit = async (ev) => {
         ev.preventDefault();
         setLoading(true);
         setError('');
 
         try {
-            const userData = await login(email, password, remember);
+            const userData = await auth.login(
+                formData.email, 
+                formData.password, 
+                formData.remember
+            );
             
-            // Navigate based on role
+            toast.success('Login successful!');
+            
             const from = location.state?.from?.pathname || 
                         (userData.role === 'billing' ? '/billing' : '/admitting');
             
             navigate(from, { replace: true });
         } catch (error) {
             let errorMessage = 'Invalid credentials';
+            
             if (error.response?.status === 401) {
                 errorMessage = 'Email or password is incorrect';
             } else if (error.response?.data?.message) {
                 errorMessage = error.response.data.message;
+            } else if (error.message) {
+                errorMessage = error.message;
             }
+            
             setError(errorMessage);
-            setPassword('');
+            toast.error(errorMessage);
+            setFormData(prev => ({ ...prev, password: '' }));
         } finally {
             setLoading(false);
         }
     };
 
+    // Handle form input changes
+    const handleChange = (e) => {
+        const { name, value, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: name === 'remember' ? checked : value
+        }));
+    };
+
     return (
         <div className="min-h-screen relative overflow-hidden bg-gray-50">
-            {/* Animated Background */}
             <AnimatedBackground />
             
-            {/* Login Form */}
             <div className="relative z-10 flex items-center justify-center min-h-screen">
                 <div className="max-w-md w-full px-8 py-12 bg-white/95 backdrop-blur-sm shadow-xl rounded-2xl">
                     <div className="flex flex-col items-center">
@@ -90,6 +131,7 @@ const Login = () => {
                             </div>
                         )}
                         
+                        {/* Email Field */}
                         <div className="relative">
                             <input
                                 id="email"
@@ -97,8 +139,8 @@ const Login = () => {
                                 type="email"
                                 required
                                 className="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pl-10"
-                                value={email}
-                                onChange={(ev) => setEmail(ev.target.value)}
+                                value={formData.email}
+                                onChange={handleChange}
                                 placeholder="Email address"
                             />
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -108,6 +150,7 @@ const Login = () => {
                             </div>
                         </div>
 
+                        {/* Password Field */}
                         <div className="relative">
                             <input
                                 id="password"
@@ -115,8 +158,8 @@ const Login = () => {
                                 type="password"
                                 required
                                 className="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all pl-10"
-                                value={password}
-                                onChange={(ev) => setPassword(ev.target.value)}
+                                value={formData.password}
+                                onChange={handleChange}
                                 placeholder="Password"
                             />
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -126,17 +169,18 @@ const Login = () => {
                             </div>
                         </div>
 
+                        {/* Remember Me Checkbox */}
                         <div className="flex items-center justify-between">
                             <div className="flex items-center">
                                 <input
-                                    id="remember-me"
-                                    name="remember-me"
+                                    id="remember"
+                                    name="remember"
                                     type="checkbox"
-                                    checked={remember}
-                                    onChange={(e) => setRemember(e.target.checked)}
+                                    checked={formData.remember}
+                                    onChange={handleChange}
                                     className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
                                 />
-                                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 cursor-pointer">
+                                <label htmlFor="remember" className="ml-2 block text-sm text-gray-700 cursor-pointer">
                                     Keep me signed in
                                 </label>
                             </div>
@@ -147,6 +191,7 @@ const Login = () => {
                             </div>
                         </div>
 
+                        {/* Submit Button */}
                         <button
                             type="submit"
                             disabled={loading}
@@ -162,6 +207,14 @@ const Login = () => {
                             )}
                         </button>
                     </form>
+                    
+                    {/* Debug Info - Remove in production */}
+                    {import.meta.env.DEV && (
+                        <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                            <p>API URL: {import.meta.env.VITE_API_URL || 'Not set'}</p>
+                            <p>Environment: {import.meta.env.MODE}</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

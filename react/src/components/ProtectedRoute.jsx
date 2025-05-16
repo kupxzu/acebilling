@@ -1,43 +1,42 @@
-import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import { Navigate, useLocation } from 'react-router-dom';
+import PropTypes from 'prop-types';
+import { auth } from '../utils/axios';
+import LoadingSpinner from './common/LoadingSpinner';
 
 const ProtectedRoute = ({ children, allowedRole }) => {
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-  const token = localStorage.getItem('token');
+  const location = useLocation();
+  const isAuthenticated = auth.isAuthenticated();
+  const user = auth.getUser();
+  
+  // Check if token is expired
   const tokenExpiry = localStorage.getItem('tokenExpiry');
-
-  // Check if token has expired
-  if (token && tokenExpiry && new Date(tokenExpiry) < new Date()) {
-    // Token has expired, clear storage
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('tokenExpiry');
-    return <Navigate to="/" />;
+  if (tokenExpiry && new Date(tokenExpiry) < new Date()) {
+    auth.logout();
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // Add interceptor to handle 401 responses
-  axios.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error.response?.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('tokenExpiry');
-        window.location.href = '/';
-      }
-      return Promise.reject(error);
-    }
-  );
-
-  if (!token) {
-    return <Navigate to="/" />;
+  // Show loading spinner while checking auth
+  if (!isAuthenticated && !user) {
+    return <LoadingSpinner />;
   }
 
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Check role access
   if (allowedRole && user?.role !== allowedRole) {
-    return <Navigate to="/" />;
+    const redirect = user?.role === 'billing' ? '/billing' : '/admitting';
+    return <Navigate to={redirect} replace />;
   }
 
   return children;
+};
+
+ProtectedRoute.propTypes = {
+  children: PropTypes.node.isRequired,
+  allowedRole: PropTypes.oneOf(['admitting', 'billing']).isRequired
 };
 
 export default ProtectedRoute;

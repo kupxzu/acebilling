@@ -253,6 +253,8 @@ const EditPatient = () => {
                     <option value="ward">Ward</option>
                     <option value="semi-private">Semi-Private</option>
                     <option value="private">Private</option>
+                    <option value="executive">Executive</option>
+                    <option value="suite">Suite</option>
                 </select>
             </div>
             <div>

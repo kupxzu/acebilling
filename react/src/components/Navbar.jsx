@@ -26,7 +26,7 @@ const Navbar = () => {
               <span className="text-2xl font-bold bg-gradient-to-r from-teal-500 to-blue-500 bg-clip-text text-transparent">
                 ACE
               </span>
-              <span className="text-2xl font-light text-gray-700">Medical</span>
+              <span className="text-2xl font-light text-gray-700">&nbsp;Medical</span>
             </Link>
           </div>
 
