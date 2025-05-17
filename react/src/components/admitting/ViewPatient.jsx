@@ -37,94 +37,158 @@ const ViewPatient = () => {
     }, [id]);
 
     return (
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
             <Navbar />
-            <div className="max-w-4xl mx-auto p-6">
-                <div className="flex justify-between items-center mb-6">
-                    {loading ? (
-                        <>
-                            <Skeleton width={250} height={32} />
-                            <Skeleton width={150} height={40} className="rounded-md" />
-                        </>
-                    ) : (
-                        <>
-                            <h2 className="text-2xl font-bold text-gray-800">Patient Details</h2>
-                            <div className="space-x-4">
+            <div className="max-w-5xl mx-auto p-6">
+                {loading ? (
+                    <div className="animate-pulse space-y-8">
+                        <div className="flex justify-between items-center">
+                            <Skeleton width={300} height={38} />
+                            <Skeleton width={200} height={46} className="rounded-md" />
+                        </div>
+                        <div className="bg-white rounded-xl shadow-lg p-8">
+                            <Skeleton height={28} width={240} className="mb-6" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <Skeleton height={24} count={5} className="space-y-2" />
+                                <Skeleton height={24} count={5} className="space-y-2" />
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                                    {patient?.first_name} {patient?.last_name}
+                                </h1>
+                                <p className="text-indigo-600 font-medium">
+                                    Room {patient?.room_number} • {patient?.ward_type?.charAt(0).toUpperCase() + patient?.ward_type?.slice(1)} Ward
+                                </p>
+                            </div>
+                            <div className="flex gap-3">
                                 <button
                                     onClick={() => navigate(`/admitting/patients/${id}`)}
-                                    className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+                                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
                                 >
-                                    Edit
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                    </svg>
+                                    Edit Patient
                                 </button>
                                 <button
                                     onClick={() => navigate('/admitting/patients')}
-                                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                    className="border border-gray-300 bg-white text-gray-700 px-5 py-2.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm hover:shadow flex items-center gap-2"
                                 >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                                    </svg>
                                     Back to List
                                 </button>
                             </div>
-                        </>
-                    )}
-                </div>
+                        </div>
 
-                {error && (
-                    <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4">
-                        <p className="text-red-700">{error}</p>
-                    </div>
-                )}
+                        {error && (
+                            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md animate-fade-in">
+                                <div className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    <p className="text-red-700 font-medium">{error}</p>
+                                </div>
+                            </div>
+                        )}
 
-                {loading ? (
-                    <div className="bg-white shadow-sm rounded-lg p-6 space-y-6">
-                        <Skeleton height={24} width={200} />
-                        <Skeleton height={20} count={4} />
-                    </div>
-                ) : patient && (
-                    <div className="bg-white shadow-sm rounded-lg p-6">
-                        <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">First Name</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.first_name}</dd>
+                        {patient && (
+                            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
+                                <h2 className="text-2xl font-semibold text-gray-800 mb-6 pb-4 border-b border-gray-100">Patient Information</h2>
+                                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                    <InfoItem label="First Name" value={patient.first_name} />
+                                    <InfoItem label="Last Name" value={patient.last_name} />
+                                    <InfoItem label="Middle Name" value={patient.middle_name || 'N/A'} />
+                                    <InfoItem label="Name Initial" value={patient.name_initial || 'N/A'} />
+                                    <InfoItem 
+                                        label="Date of Birth" 
+                                        value={new Date(patient.date_of_birth).toLocaleDateString('en-US', {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                        icon={
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                            </svg>
+                                        }
+                                    />
+                                    <InfoItem 
+                                        label="Room Number" 
+                                        value={patient.room_number}
+                                        icon={
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                                                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                                            </svg>
+                                        }
+                                    />
+                                    <InfoItem 
+                                        label="Ward Type" 
+                                        value={patient.ward_type.charAt(0).toUpperCase() + patient.ward_type.slice(1)}
+                                        highlightColor={getWardColor(patient.ward_type)}
+                                    />
+                                    <InfoItem 
+                                        label="Attending Physician" 
+                                        value={patient.attending_physician}
+                                        icon={
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                            </svg>
+                                        }
+                                    />
+                                    <div className="md:col-span-2 mt-4">
+                                        <dt className="text-sm font-medium text-gray-500 mb-1">Remarks</dt>
+                                        <dd className="mt-2 text-gray-900 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                            {patient.remarks || 'No remarks provided for this patient.'}
+                                        </dd>
+                                    </div>
+                                </dl>
                             </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Last Name</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.last_name}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Middle Name</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.middle_name || 'N/A'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Name Initial</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.name_initial || 'N/A'}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Date of Birth</dt>
-                                <dd className="mt-1 text-lg text-gray-900">
-                                    {new Date(patient.date_of_birth).toLocaleDateString()}
-                                </dd>
-                            </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Room Number</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.room_number}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Ward Type</dt>
-                                <dd className="mt-1 text-lg text-gray-900 capitalize">{patient.ward_type}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Attending Physician</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.attending_physician}</dd>
-                            </div>
-                            <div className="md:col-span-2">
-                                <dt className="text-sm font-medium text-gray-500">Remarks</dt>
-                                <dd className="mt-1 text-lg text-gray-900">{patient.remarks || 'No remarks'}</dd>
-                            </div>
-                        </dl>
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
     );
 };
 
+// Helper component for displaying patient information items
+const InfoItem = ({ label, value, icon, highlightColor }) => {
+    return (
+        <div className="group">
+            <dt className="text-sm font-medium text-gray-500 mb-1 flex items-center gap-2">
+                {icon}
+                {label}
+            </dt>
+            <dd className={`mt-1 text-lg text-gray-900 font-medium group-hover:text-indigo-600 transition-colors ${
+                highlightColor ? `px-3 py-1 rounded-full inline-block ${highlightColor}` : ''
+            }`}>
+                {value}
+            </dd>
+        </div>
+    );
+};
+
+// Helper function to get appropriate color for ward type
+const getWardColor = (wardType) => {
+    const wardColors = {
+        'private': 'bg-green-100 text-green-800',
+        'semi-private': 'bg-blue-100 text-blue-800',
+        'general': 'bg-yellow-100 text-yellow-800',
+        'emergency': 'bg-red-100 text-red-800',
+        'icu': 'bg-purple-100 text-purple-800',
+    };
+    
+    return wardColors[wardType.toLowerCase()] || 'bg-gray-100 text-gray-800';
+};
+
 export default ViewPatient;
+
+
+

@@ -1,114 +1,136 @@
+
 import React from 'react';
 
-const AnimatedLine = ({ delay, duration, yPosition, opacity }) => (
+const MedicalCross = ({ delay, duration, position, size, color }) => (
     <div
-        className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-red-200 to-transparent"
+        className="absolute"
         style={{
-            top: `${yPosition}%`,
-            opacity: opacity,
-            animation: `slideRight ${duration}s linear ${delay}s infinite`
+            top: `${position.y}%`,
+            left: `${position.x}%`,
+            animation: `float ${duration}s ease-in-out ${delay}s infinite`,
+            opacity: 0.6
+        }}
+    >
+        <svg 
+            width={size} 
+            height={size} 
+            viewBox="0 0 24 24" 
+            className={`${color} opacity-60 transform rotate-45`}
+        >
+            <path 
+                d="M12 2C7.58172 2 4 5.58172 4 10C4 14.4183 7.58172 18 12 18C16.4183 18 20 14.4183 20 10C20 5.58172 16.4183 2 12 2ZM11 6V9H8V11H11V14H13V11H16V9H13V6H11Z"
+                fill="currentColor"
+            />
+        </svg>
+    </div>
+);
+
+const SlidingLine = ({ vertical = false, delay = 0 }) => (
+    <div
+        className={`absolute ${vertical ? 'h-full w-px' : 'w-full h-px'} bg-gradient-to-r from-transparent via-gray-400/20 to-transparent`}
+        style={{
+            animation: `slide${vertical ? 'Y' : 'X'} 15s linear ${delay}s infinite`,
+            left: vertical ? `${Math.random() * 100}%` : 0,
+            top: vertical ? 0 : `${Math.random() * 100}%`
         }}
     />
 );
 
 const AnimatedBackground = () => {
+    const crosses = [...Array(15)].map((_, i) => ({
+        id: i,
+        position: {
+            x: Math.random() * 100,
+            y: Math.random() * 100
+        },
+        delay: Math.random() * 5,
+        duration: Math.random() * 3 + 4,
+        size: Math.random() * 30 + 25, // Increased size
+        color: [
+            'text-red-500',
+            'text-green-500',
+            'text-yellow-500',
+            'text-purple-500'
+        ][Math.floor(Math.random() * 4)]
+    }));
+
     return (
         <>
-            {/* Global styles for animations */}
             <style jsx>{`
-                @keyframes slideRight {
-                    0% { transform: translateX(-100%); }
-                    100% { transform: translateX(100%); }
+                @keyframes float {
+                    0% {
+                        transform: translateY(20px) scale(0.9);
+                        opacity: 0.2;
+                    }
+                    50% {
+                        transform: translateY(-20px) scale(1.1);
+                        opacity: 0.6;
+                    }
+                    100% {
+                        transform: translateY(20px) scale(0.9);
+                        opacity: 0.2;
+                    }
                 }
-                
-                @keyframes slideDown {
-                    0% { transform: translateY(-100%); }
-                    100% { transform: translateY(100%); }
+
+                @keyframes slideX {
+                    from { transform: translateX(-100%); }
+                    to { transform: translateX(100%); }
                 }
-                
-                @keyframes diagonalMove {
-                    0% { transform: translate(-200%, -200%) rotate(45deg); }
-                    100% { transform: translate(200%, 200%) rotate(45deg); }
+
+                @keyframes slideY {
+                    from { transform: translateY(-100%); }
+                    to { transform: translateY(100%); }
                 }
-                
+
                 @keyframes pulse {
-                    0%, 100% { opacity: 0.1; }
-                    50% { opacity: 0.3; }
+                    0%, 100% { 
+                        transform: scale(1);
+                        opacity: 0.3;
+                    }
+                    50% { 
+                        transform: scale(1.2);
+                        opacity: 0.5;
+                    }
                 }
             `}</style>
 
-            <div className="absolute inset-0">
-                {/* Horizontal lines */}
-                <AnimatedLine delay={0} duration={8} yPosition={10} opacity={1} />
-                <AnimatedLine delay={2} duration={10} yPosition={25} opacity={1} />
-                <AnimatedLine delay={4} duration={12} yPosition={40} opacity={1} />
-                <AnimatedLine delay={1} duration={9} yPosition={55} opacity={1} />
-                <AnimatedLine delay={3} duration={11} yPosition={70} opacity={1} />
-                <AnimatedLine delay={5} duration={13} yPosition={85} opacity={1} />
-                
-                {/* Vertical lines */}
-                <div
-                    className="absolute inset-y-0 w-0.5 bg-gradient-to-b from-transparent via-green-200 to-transparent"
-                    style={{
-                        left: '20%',
-                        animation: 'slideDown 15s linear infinite',
-                        opacity: 1
-                    }}
-                />
-                <div
-                    className="absolute inset-y-0 w-0.5 bg-gradient-to-b from-transparent via-gray-200 to-transparent"
-                    style={{
-                        left: '50%',
-                        animation: 'slideDown 12s linear 3s infinite',
-                        opacity: 1
-                    }}
-                />
-                <div
-                    className="absolute inset-y-0 w-0.5 bg-gradient-to-b from-transparent via-orange-200 to-transparent"
-                    style={{
-                        left: '80%',
-                        animation: 'slideDown 18s linear 5s infinite',
-                        opacity: 1
-                    }}
-                />
-                
-                {/* Diagonal lines */}
-                <div
-                    className="absolute w-0.5 h-96 bg-gradient-to-t from-transparent via-yellow-200 to-transparent"
-                    style={{
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%) rotate(45deg)',
-                        animation: 'diagonalMove 20s linear infinite',
-                        opacity: 1
-                    }}
-                />
-                <div
-                    className="absolute w-0.5 h-96 bg-gradient-to-t from-transparent via-gray-200 to-transparent"
-                    style={{
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%) rotate(-45deg)',
-                        animation: 'diagonalMove 25s linear 10s infinite reverse',
-                        opacity: 1
-                    }}
-                />
+            <div className="absolute inset-0 overflow-hidden">
+                {/* Sliding Lines */}
+                {[...Array(8)].map((_, i) => (
+                    <SlidingLine key={`h-${i}`} delay={i * 2} />
+                ))}
+                {[...Array(8)].map((_, i) => (
+                    <SlidingLine key={`v-${i}`} vertical delay={i * 2} />
+                ))}
 
-                {/* Grid dots */}
-                {[...Array(15)].map((_, i) => (
-                    <div
-                        key={i}
-                        className="absolute w-1 h-1 bg-gray-300 rounded-full"
-                        style={{
-                            top: `${Math.random() * 100}%`,
-                            left: `${Math.random() * 100}%`,
-                            animation: `pulse ${Math.random() * 3 + 2}s ease-in-out infinite`
-                        }}
+                {/* Medical Crosses */}
+                {crosses.map(cross => (
+                    <MedicalCross
+                        key={cross.id}
+                        position={cross.position}
+                        delay={cross.delay}
+                        duration={cross.duration}
+                        size={cross.size}
+                        color={cross.color}
                     />
                 ))}
+
+                {/* Grid Points */}
+                <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-8">
+                    {[...Array(144)].map((_, i) => (
+                        <div
+                            key={i}
+                            className="w-2 h-2 bg-gray-400/30 rounded-full"
+                            style={{
+                                animation: `pulse ${Math.random() * 2 + 2}s ease-in-out infinite`
+                            }}
+                        />
+                    ))}
+                </div>
             </div>
         </>
     );
 };
 
 export default AnimatedBackground;
+
