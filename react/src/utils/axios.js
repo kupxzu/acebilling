@@ -58,7 +58,7 @@ export const auth = {
             console.error('Logout failed:', error);
         } finally {
             // Save current path before logout if it's not the login page
-            const currentPath = window.location.hash.slice(1);
+            const currentPath = window.location.hash.slice(1); // Remove the # from hash
             if (currentPath !== '/' && currentPath !== '/login') {
                 localStorage.setItem('redirectUrl', currentPath);
             }
@@ -93,14 +93,40 @@ export const auth = {
         }
     },
 
-    async verifyToken() {
+    async logout(silent = false) {
         try {
-            const response = await axiosClient.get('/verify-token');
-            return response.data;
+            const token = localStorage.getItem('token');
+            
+            if (token) {
+                await axiosClient.post('/logout').catch(console.error);
+            }
         } catch (error) {
-            console.error('Token verification failed:', error);
-            this.logout();
-            throw error;
+            console.error('Logout failed:', error);
+        } finally {
+            // Save current path before logout if it's not the login page
+            if (!silent) {
+                const currentPath = window.location.hash.slice(1);
+                if (currentPath !== '/' && currentPath !== '/login') {
+                    localStorage.setItem('redirectUrl', currentPath);
+                }
+            }
+            
+            // Clear auth data but preserve redirectUrl and remembered_email
+            const redirectUrl = localStorage.getItem('redirectUrl');
+            const rememberedEmail = localStorage.getItem('remembered_email');
+            
+            localStorage.clear();
+            
+            if (redirectUrl) {
+                localStorage.setItem('redirectUrl', redirectUrl);
+            }
+            if (rememberedEmail) {
+                localStorage.setItem('remembered_email', rememberedEmail);
+            }
+            
+            if (!silent) {
+                window.location.href = '/';
+            }
         }
     },
 
@@ -133,7 +159,7 @@ export const auth = {
         }
     },
 
-    logout(silent = false) {
+    logout() {
         const token = localStorage.getItem('token');
         
         if (token) {
@@ -141,11 +167,9 @@ export const auth = {
         }
         
         // Save current path before logout if it's not the login page
-        if (!silent) {
-            const currentPath = window.location.hash.slice(1);
-            if (currentPath !== '/' && currentPath !== '/login') {
-                localStorage.setItem('redirectUrl', currentPath);
-            }
+        const currentPath = window.location.hash.slice(1); // Remove the # from hash
+        if (currentPath !== '/' && currentPath !== '/login') {
+            localStorage.setItem('redirectUrl', currentPath);
         }
         
         // Clear auth data but preserve redirectUrl and remembered_email
@@ -161,9 +185,7 @@ export const auth = {
             localStorage.setItem('remembered_email', rememberedEmail);
         }
         
-        if (!silent) {
-            window.location.href = '/';
-        }
+        window.location.href = '/';
     }
 };
 
