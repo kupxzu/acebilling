@@ -52,17 +52,44 @@ export const auth = {
             const token = localStorage.getItem('token');
             
             if (token) {
-                await axiosClient.post('/logout', {}, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                await axiosClient.post('/logout').catch(console.error);
             }
         } catch (error) {
             console.error('Logout failed:', error);
         } finally {
+            // Save current path before logout if it's not the login page
+            const currentPath = window.location.hash.slice(1);
+            if (currentPath !== '/' && currentPath !== '/login') {
+                localStorage.setItem('redirectUrl', currentPath);
+            }
+            
+            // Clear auth data but preserve redirectUrl and remembered_email
+            const redirectUrl = localStorage.getItem('redirectUrl');
+            const rememberedEmail = localStorage.getItem('remembered_email');
+            
             localStorage.clear();
+            
+            if (redirectUrl) {
+                localStorage.setItem('redirectUrl', redirectUrl);
+            }
+            if (rememberedEmail) {
+                localStorage.setItem('remembered_email', rememberedEmail);
+            }
+            
             window.location.href = '/';
+        }
+    },
+
+    getDefaultRoute(role) {
+        switch (role) {
+            case 'admin':
+                return '/admin';
+            case 'billing':
+                return '/billing';
+            case 'admitting':
+                return '/admitting';
+            default:
+                return '/';
         }
     },
 
@@ -88,7 +115,7 @@ export const auth = {
         
         // Check if token is expired
         if (new Date(tokenExpiry) < new Date()) {
-            this.logout();
+            this.logout(true); // Silent logout
             return false;
         }
         
@@ -106,7 +133,7 @@ export const auth = {
         }
     },
 
-    logout() {
+    logout(silent = false) {
         const token = localStorage.getItem('token');
         
         if (token) {
@@ -114,9 +141,11 @@ export const auth = {
         }
         
         // Save current path before logout if it's not the login page
-        const currentPath = window.location.hash.slice(1); // Remove the # from hash
-        if (currentPath !== '/' && currentPath !== '/login') {
-            localStorage.setItem('redirectUrl', currentPath);
+        if (!silent) {
+            const currentPath = window.location.hash.slice(1);
+            if (currentPath !== '/' && currentPath !== '/login') {
+                localStorage.setItem('redirectUrl', currentPath);
+            }
         }
         
         // Clear auth data but preserve redirectUrl and remembered_email
@@ -132,7 +161,9 @@ export const auth = {
             localStorage.setItem('remembered_email', rememberedEmail);
         }
         
-        window.location.href = '/';
+        if (!silent) {
+            window.location.href = '/';
+        }
     }
 };
 
@@ -153,15 +184,9 @@ axiosClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Don't redirect if trying to login or verify token
             const skipRedirectUrls = ['/login', '/verify-token'];
             if (!skipRedirectUrls.some(url => error.config.url.includes(url))) {
-                // Save current path before handling unauthorized error
-                const currentPath = window.location.hash.slice(1);
-                if (currentPath !== '/' && currentPath !== '/login') {
-                    localStorage.setItem('redirectUrl', currentPath);
-                }
-                auth.logout();
+                auth.logout(); // Will redirect to login
             }
         }
         return Promise.reject(error);

@@ -13,7 +13,6 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   useEffect(() => {
     const verifyAuth = async () => {
       try {
-        // Check authentication and verify token with backend
         const isValid = auth.isAuthenticated();
         const userData = auth.getUser();
 
@@ -24,8 +23,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
             setIsAuthenticated(true);
             setUser(userData);
           } else {
-            // Token invalid - clear and redirect
-            auth.logout();
+            await auth.logout(true); // Silent logout
             setIsAuthenticated(false);
             setUser(null);
           }
@@ -35,6 +33,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
         }
       } catch (error) {
         console.error('Auth verification failed:', error);
+        await auth.logout(true); // Silent logout
         setIsAuthenticated(false);
         setUser(null);
       } finally {
@@ -50,15 +49,15 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     return <LoadingSpinner />;
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/" state={{ from: location.pathname }} replace />;
+  // If authenticated but wrong role, redirect to correct dashboard
+  if (isAuthenticated && user && allowedRole && user.role !== allowedRole) {
+    const correctPath = auth.getDefaultRoute(user.role);
+    return <Navigate to={correctPath} replace />;
   }
 
-  // Check role access
-  if (allowedRole && user.role !== allowedRole) {
-    const redirect = user.role === 'billing' ? '/billing' : '/admitting';
-    return <Navigate to={redirect} replace />;
+  // If not authenticated, redirect to login
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/" state={{ from: location.pathname }} replace />;
   }
 
   return children;
