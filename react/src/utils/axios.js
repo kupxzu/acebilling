@@ -12,37 +12,10 @@ const axiosClient = axios.create({
     }
 });
 
-// Storage utility functions
-const storage = {
-    local: {
-        set: (key, value) => localStorage.setItem(key, value),
-        get: (key) => localStorage.getItem(key),
-        remove: (key) => localStorage.removeItem(key),
-        clear: () => localStorage.clear()
-    },
-    session: {
-        set: (key, value) => sessionStorage.setItem(key, value),
-        get: (key) => sessionStorage.getItem(key),
-        remove: (key) => sessionStorage.removeItem(key),
-        clear: () => sessionStorage.clear()
-    },
-    // Get from either storage
-    getAuth: (key) => {
-        return localStorage.getItem(key) || sessionStorage.getItem(key);
-    },
-    // Clear both storages
-    clearAuth: () => {
-        localStorage.clear();
-        sessionStorage.clear();
-    }
-};
-
 // Auth methods
 export const auth = {
     async login(email, password, remember = false) {
         try {
-            console.log('Login attempt with email:', email);
-            
             const response = await axiosClient.post('/login', { 
                 email, 
                 password, 
@@ -52,39 +25,31 @@ export const auth = {
             const { data } = response;
 
             if (data.status) {
-                const storageType = remember ? storage.local : storage.session;
-                
-                // Store auth data in selected storage
-                storageType.set('token', data.token);
-                storageType.set('user', JSON.stringify(data.data));
-                storageType.set('tokenExpiry', data.expires_at || new Date(Date.now() + 86400000).toISOString());
-                
+                // Always store auth data in localStorage for persistence
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.data));
+                localStorage.setItem('tokenExpiry', data.expires_at);
+                localStorage.setItem('remember', data.remember.toString());
+
                 if (remember) {
-                    storageType.set('remembered_email', email);
+                    localStorage.setItem('remembered_email', email);
                 } else {
-                    storage.local.remove('remembered_email');
+                    localStorage.removeItem('remembered_email');
                 }
 
-                console.log('Login successful!');
                 return data.data;
             }
             
             throw new Error(data.message || 'Login failed');
         } catch (error) {
             console.error('Login failed:', error);
-            if (error.response) {
-                console.error('Server response:', {
-                    status: error.response.status,
-                    data: error.response.data
-                });
-            }
             throw error;
         }
     },
 
     async logout() {
         try {
-            const token = storage.getAuth('token');
+            const token = localStorage.getItem('token');
             
             if (token) {
                 await axiosClient.post('/logout', {}, {
@@ -96,27 +61,28 @@ export const auth = {
         } catch (error) {
             console.error('Logout failed:', error);
         } finally {
-            storage.clearAuth();
+            localStorage.clear();
             window.location.href = '/';
         }
     },
 
-    getUser() {
+    async verifyToken() {
         try {
-            const userStr = storage.getAuth('user');
-            return userStr ? JSON.parse(userStr) : null;
+            const response = await axiosClient.get('/verify-token');
+            return response.data;
         } catch (error) {
-            console.error('Error parsing user data:', error);
+            console.error('Token verification failed:', error);
             this.logout();
-            return null;
+            throw error;
         }
     },
 
     isAuthenticated() {
-        const token = storage.getAuth('token');
-        const tokenExpiry = storage.getAuth('tokenExpiry');
+        const token = localStorage.getItem('token');
+        const tokenExpiry = localStorage.getItem('tokenExpiry');
+        const user = this.getUser();
         
-        if (!token || !tokenExpiry) {
+        if (!token || !tokenExpiry || !user) {
             return false;
         }
         
@@ -127,13 +93,53 @@ export const auth = {
         }
         
         return true;
+    },
+
+    getUser() {
+        try {
+            const userStr = localStorage.getItem('user');
+            return userStr ? JSON.parse(userStr) : null;
+        } catch (error) {
+            console.error('Error parsing user data:', error);
+            this.logout();
+            return null;
+        }
+    },
+
+    logout() {
+        const token = localStorage.getItem('token');
+        
+        if (token) {
+            axiosClient.post('/logout').catch(console.error);
+        }
+        
+        // Save current path before logout if it's not the login page
+        const currentPath = window.location.hash.slice(1); // Remove the # from hash
+        if (currentPath !== '/' && currentPath !== '/login') {
+            localStorage.setItem('redirectUrl', currentPath);
+        }
+        
+        // Clear auth data but preserve redirectUrl and remembered_email
+        const redirectUrl = localStorage.getItem('redirectUrl');
+        const rememberedEmail = localStorage.getItem('remembered_email');
+        
+        localStorage.clear();
+        
+        if (redirectUrl) {
+            localStorage.setItem('redirectUrl', redirectUrl);
+        }
+        if (rememberedEmail) {
+            localStorage.setItem('remembered_email', rememberedEmail);
+        }
+        
+        window.location.href = '/';
     }
 };
 
 // Request interceptor
 axiosClient.interceptors.request.use(
     (config) => {
-        const token = storage.getAuth('token');
+        const token = localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -146,16 +152,18 @@ axiosClient.interceptors.request.use(
 axiosClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Handle 401 (Unauthorized)
         if (error.response?.status === 401) {
-            // Only handle true auth failures (not during login)
-            if (!error.config.url.includes('/login')) {
-                toast.error('Your session has expired. Please sign in again.');
+            // Don't redirect if trying to login or verify token
+            const skipRedirectUrls = ['/login', '/verify-token'];
+            if (!skipRedirectUrls.some(url => error.config.url.includes(url))) {
+                // Save current path before handling unauthorized error
+                const currentPath = window.location.hash.slice(1);
+                if (currentPath !== '/' && currentPath !== '/login') {
+                    localStorage.setItem('redirectUrl', currentPath);
+                }
                 auth.logout();
             }
         }
-        
-        // Let the original error proceed
         return Promise.reject(error);
     }
 );

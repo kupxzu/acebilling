@@ -89,9 +89,7 @@ class UserController extends Controller
      */
     public function login(Request $request)
     {
-        Log::debug('Login attempt', [
-            'email' => $request->email
-        ]);
+        Log::debug('Login attempt', ['email' => $request->email]);
         
         try {
             $validator = Validator::make($request->all(), [
@@ -101,10 +99,6 @@ class UserController extends Controller
             ]);
 
             if ($validator->fails()) {
-                Log::debug('Login validation failed', [
-                    'errors' => $validator->errors()->toArray()
-                ]);
-                
                 return response()->json([
                     'status' => false,
                     'message' => 'Validation Error',
@@ -112,36 +106,30 @@ class UserController extends Controller
                 ], 422);
             }
 
-            // Validate credentials directly instead of using Auth::attempt
-            // This avoids the CSRF token requirement
             $user = User::where('email', $request->email)->first();
             
             if (!$user || !Hash::check($request->password, $user->password)) {
-                Log::debug('Authentication failed - invalid credentials', [
-                    'email' => $request->email
-                ]);
-                
+                Log::debug('Authentication failed - invalid credentials');
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid login credentials'
                 ], 401);
             }
             
-            // Remember me logic
-            $remember = $request->boolean('remember', false);
-            
             // Revoke all existing tokens
             $user->tokens()->delete();
             
-            // Create new token with expiration based on remember me
-            $expiration = $remember ? now()->addDays(30) : now()->addDay();
-            $token = $user->createToken('auth_token', ['*'], $expiration)->plainTextToken;
+            // Set token expiration based on remember me
+            $remember = $request->boolean('remember', false);
+            $expiration = $remember ? now()->addDays(30) : now()->addHours(12);
+            
+            // Create new token
+            $token = $user->createToken('auth_token')->plainTextToken;
 
             Log::debug('Login successful', [
                 'user_id' => $user->id,
                 'role' => $user->role,
-                'remember' => $remember,
-                'token_created' => true
+                'remember' => $remember
             ]);
 
             return response()->json([
@@ -149,12 +137,12 @@ class UserController extends Controller
                 'message' => 'Login successful',
                 'data' => $user,
                 'token' => $token,
-                'expires_at' => $expiration->toISOString()
+                'expires_at' => $expiration->toISOString(),
+                'remember' => $remember
             ]);
 
         } catch (\Exception $e) {
             Log::error('Login exception', [
-                'email' => $request->email ?? 'not provided',
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -500,6 +488,40 @@ class UserController extends Controller
                 'status' => false,
                 'message' => 'Failed to delete user'
             ], 500);
+        }
+    }
+
+    /**
+     * Verify token validity
+     */
+    public function verifyToken(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Invalid token'
+                ], 401);
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Token is valid',
+                'data' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Token verification failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'status' => false,
+                'message' => 'Token verification failed'
+            ], 401);
         }
     }
 }

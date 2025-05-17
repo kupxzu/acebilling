@@ -70,11 +70,20 @@ const Login = () => {
             
             toast.success('Login successful!');
             
-            const from = location.state?.from?.pathname || 
-                (userData.role === 'admin' ? '/admin' : 
-                 userData.role === 'billing' ? '/billing' : '/admitting');
+            // Check for stored redirect URL
+            const redirectUrl = localStorage.getItem('redirectUrl');
+            localStorage.removeItem('redirectUrl'); // Clear it after getting it
             
-            navigate(from, { replace: true });
+            // Determine where to redirect
+            let targetPath;
+            if (redirectUrl && isValidRedirect(redirectUrl, userData.role)) {
+                targetPath = redirectUrl;
+            } else {
+                targetPath = userData.role === 'admin' ? '/admin' : 
+                           userData.role === 'billing' ? '/billing' : '/admitting';
+            }
+            
+            navigate(targetPath, { replace: true });
         } catch (error) {
             let errorMessage = 'Invalid credentials';
             
@@ -92,6 +101,19 @@ const Login = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Helper function to validate redirect URLs
+    const isValidRedirect = (url, role) => {
+        // Define valid paths for each role
+        const validPaths = {
+            admin: ['/admin'],
+            billing: ['/billing'],
+            admitting: ['/admitting']
+        };
+        
+        // Check if the URL starts with any valid path for the user's role
+        return validPaths[role]?.some(path => url.startsWith(path)) ?? false;
     };
 
     // Handle form input changes

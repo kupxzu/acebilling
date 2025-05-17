@@ -109,4 +109,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{id}', [UserController::class, 'update']);
         Route::delete('/{id}', [UserController::class, 'destroy']);
     });
+
+    // Token verification
+    Route::get('/verify-token', [UserController::class, 'verifyToken']);
 });
