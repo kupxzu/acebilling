@@ -101,4 +101,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Reports
         Route::get('/reports', [BillingController::class, 'getReports']);
     });
+
+    // Admin user management routes
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::post('/register', [UserController::class, 'register']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
+    });
 });

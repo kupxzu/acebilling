@@ -71,7 +71,8 @@ const Login = () => {
             toast.success('Login successful!');
             
             const from = location.state?.from?.pathname || 
-                        (userData.role === 'billing' ? '/billing' : '/admitting');
+                (userData.role === 'admin' ? '/admin' : 
+                 userData.role === 'billing' ? '/billing' : '/admitting');
             
             navigate(from, { replace: true });
         } catch (error) {

@@ -25,6 +25,10 @@ import PatientPortal from './components/portal/PatientPortal';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRoute from './components/AuthRoute';
 
+// Admin Components
+import AdminDashboard from './components/admin/AdminDashboard';
+import CreateAdmin from './components/admin/CreateAdmin';
+
 // Route configurations
 const authRoutes = [
   {
@@ -83,11 +87,23 @@ const billingRoutes = [
   }
 ];
 
+const adminRoutes = [
+  {
+    path: '/admin',
+    element: <ProtectedRoute allowedRole="admin"><AdminDashboard /></ProtectedRoute>,
+  },
+  {
+    path: '/admin/create-admin',
+    element: <ProtectedRoute allowedRole="admin"><CreateAdmin /></ProtectedRoute>,
+  }
+];
+
 // Change from createBrowserRouter to createHashRouter
 const router = createHashRouter([
   ...authRoutes,
   ...admittingRoutes,
   ...billingRoutes,
+  ...adminRoutes,
   {
     path: '/p/:hash',
     element: <PatientPortal />

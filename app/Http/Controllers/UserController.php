@@ -17,12 +17,28 @@ use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
+    private function checkAdminAccess()
+    {
+        if (!auth()->check() || auth()->user()->role !== 'admin') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized. Admin access required.'
+            ], 403);
+        }
+        return true;
+    }
+
     /**
      * Register a new user
      */
     public function register(Request $request)
     {
         try {
+            $adminCheck = $this->checkAdminAccess();
+            if ($adminCheck !== true) {
+                return $adminCheck;
+            }
+
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users',
@@ -368,6 +384,121 @@ class UserController extends Controller
                 'status' => false,
                 'message' => 'Failed to reset password',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all users
+     */
+    public function index()
+    {
+        try {
+            $adminCheck = $this->checkAdminAccess();
+            if ($adminCheck !== true) {
+                return $adminCheck;
+            }
+
+            $users = User::select(['id', 'name', 'email', 'role', 'created_at'])
+                        ->orderBy('name')
+                        ->paginate(10); // Add pagination with 10 items per page
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Users retrieved successfully',
+                'data' => $users // This will include pagination metadata
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve users: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to retrieve users'
+            ], 500);
+        }
+    }
+
+    /**
+     * Update user
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            $adminCheck = $this->checkAdminAccess();
+            if ($adminCheck !== true) {
+                return $adminCheck;
+            }
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users,email,' . $id,
+                'role' => 'required|in:admin,billing,admitting'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Validation Error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $user = User::findOrFail($id);
+            
+            $user->update([
+                'name' => $request->name,
+                'email' => $request->email,
+                'role' => $request->role
+            ]);
+
+            // Update password if provided
+            if ($request->filled('password')) {
+                $user->password = Hash::make($request->password);
+                $user->save();
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => 'User updated successfully',
+                'data' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update user', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to update user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete user
+     */
+    public function destroy($id)
+    {
+        try {
+            $adminCheck = $this->checkAdminAccess();
+            if ($adminCheck !== true) {
+                return $adminCheck;
+            }
+
+            $user = User::findOrFail($id);
+            $user->delete();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'User deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete user: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to delete user'
             ], 500);
         }
     }
