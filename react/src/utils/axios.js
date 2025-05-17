@@ -12,13 +12,37 @@ const axiosClient = axios.create({
     }
 });
 
+// Storage utility functions
+const storage = {
+    local: {
+        set: (key, value) => localStorage.setItem(key, value),
+        get: (key) => localStorage.getItem(key),
+        remove: (key) => localStorage.removeItem(key),
+        clear: () => localStorage.clear()
+    },
+    session: {
+        set: (key, value) => sessionStorage.setItem(key, value),
+        get: (key) => sessionStorage.getItem(key),
+        remove: (key) => sessionStorage.removeItem(key),
+        clear: () => sessionStorage.clear()
+    },
+    // Get from either storage
+    getAuth: (key) => {
+        return localStorage.getItem(key) || sessionStorage.getItem(key);
+    },
+    // Clear both storages
+    clearAuth: () => {
+        localStorage.clear();
+        sessionStorage.clear();
+    }
+};
+
 // Auth methods
 export const auth = {
     async login(email, password, remember = false) {
         try {
             console.log('Login attempt with email:', email);
             
-            // Direct API request without CSRF token
             const response = await axiosClient.post('/login', { 
                 email, 
                 password, 
@@ -28,20 +52,18 @@ export const auth = {
             const { data } = response;
 
             if (data.status) {
-                // Store user data and token in localStorage
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('user', JSON.stringify(data.data));
+                const storageType = remember ? storage.local : storage.session;
                 
-                // Set token expiry
-                const expiry = new Date();
+                // Store auth data in selected storage
+                storageType.set('token', data.token);
+                storageType.set('user', JSON.stringify(data.data));
+                storageType.set('tokenExpiry', data.expires_at || new Date(Date.now() + 86400000).toISOString());
+                
                 if (remember) {
-                    localStorage.setItem('remembered_email', email);
-                    expiry.setDate(expiry.getDate() + 30);
+                    storageType.set('remembered_email', email);
                 } else {
-                    localStorage.removeItem('remembered_email');
-                    expiry.setHours(expiry.getHours() + 24);
+                    storage.local.remove('remembered_email');
                 }
-                localStorage.setItem('tokenExpiry', data.expires_at || expiry.toISOString());
 
                 console.log('Login successful!');
                 return data.data;
@@ -50,22 +72,19 @@ export const auth = {
             throw new Error(data.message || 'Login failed');
         } catch (error) {
             console.error('Login failed:', error);
-            
-            // Enhanced error logging
             if (error.response) {
                 console.error('Server response:', {
                     status: error.response.status,
                     data: error.response.data
                 });
             }
-            
             throw error;
         }
     },
 
     async logout() {
         try {
-            const token = localStorage.getItem('token');
+            const token = storage.getAuth('token');
             
             if (token) {
                 await axiosClient.post('/logout', {}, {
@@ -77,17 +96,14 @@ export const auth = {
         } catch (error) {
             console.error('Logout failed:', error);
         } finally {
-            // Clear local storage regardless of API success
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            localStorage.removeItem('tokenExpiry');
+            storage.clearAuth();
             window.location.href = '/';
         }
     },
 
     getUser() {
         try {
-            const userStr = localStorage.getItem('user');
+            const userStr = storage.getAuth('user');
             return userStr ? JSON.parse(userStr) : null;
         } catch (error) {
             console.error('Error parsing user data:', error);
@@ -97,8 +113,8 @@ export const auth = {
     },
 
     isAuthenticated() {
-        const token = localStorage.getItem('token');
-        const tokenExpiry = localStorage.getItem('tokenExpiry');
+        const token = storage.getAuth('token');
+        const tokenExpiry = storage.getAuth('tokenExpiry');
         
         if (!token || !tokenExpiry) {
             return false;
@@ -117,8 +133,7 @@ export const auth = {
 // Request interceptor
 axiosClient.interceptors.request.use(
     (config) => {
-        // Add auth token to all requests if it exists
-        const token = localStorage.getItem('token');
+        const token = storage.getAuth('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }

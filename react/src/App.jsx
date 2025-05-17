@@ -24,6 +24,7 @@ import PatientBills from './components/billing/PatientBills';
 import PatientPortal from './components/portal/PatientPortal';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRoute from './components/AuthRoute';
+import NotFound from './components/common/NotFound';
 
 // Admin Components
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -110,7 +111,7 @@ const router = createHashRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/" replace />
+    element: <NotFound />  // Replace the Navigate component with NotFound
   }
 ]);
 
