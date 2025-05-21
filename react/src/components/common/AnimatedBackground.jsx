@@ -1,7 +1,6 @@
+import React, { useMemo, useEffect, useState } from 'react';
 
-import React from 'react';
-
-const MedicalCross = ({ delay, duration, position, size, color }) => (
+const MedicalCross = React.memo(({ delay, duration, position, size, color }) => (
     <div
         className="absolute"
         style={{
@@ -23,40 +22,89 @@ const MedicalCross = ({ delay, duration, position, size, color }) => (
             />
         </svg>
     </div>
-);
+));
 
-const SlidingLine = ({ vertical = false, delay = 0 }) => (
+const SlidingLine = React.memo(({ vertical = false, delay = 0, position }) => (
     <div
         className={`absolute ${vertical ? 'h-full w-px' : 'w-full h-px'} bg-gradient-to-r from-transparent via-gray-400/20 to-transparent`}
         style={{
             animation: `slide${vertical ? 'Y' : 'X'} 15s linear ${delay}s infinite`,
-            left: vertical ? `${Math.random() * 100}%` : 0,
-            top: vertical ? 0 : `${Math.random() * 100}%`
+            left: vertical ? `${position}%` : 0,
+            top: vertical ? 0 : `${position}%`
         }}
     />
-);
+));
+
+const GridPoint = React.memo(({ animationDuration }) => (
+    <div
+        className="w-2 h-2 bg-gray-400/30 rounded-full"
+        style={{
+            animation: `pulse ${animationDuration}s ease-in-out infinite`
+        }}
+    />
+));
 
 const AnimatedBackground = () => {
-    const crosses = [...Array(15)].map((_, i) => ({
-        id: i,
-        position: {
-            x: Math.random() * 100,
-            y: Math.random() * 100
-        },
-        delay: Math.random() * 5,
-        duration: Math.random() * 3 + 4,
-        size: Math.random() * 30 + 25, // Increased size
-        color: [
-            'text-red-500',
-            'text-green-500',
-            'text-yellow-500',
-            'text-purple-500'
-        ][Math.floor(Math.random() * 4)]
-    }));
+    // Use state to store the generated elements, initialized to empty arrays
+    const [elements, setElements] = useState({
+        crosses: [],
+        horizontalLines: [],
+        verticalLines: [],
+        gridPoints: []
+    });
+    
+    // Generate elements only once when the component mounts
+    useEffect(() => {
+        // Generate crosses
+        const crosses = [...Array(15)].map((_, i) => ({
+            id: i,
+            position: {
+                x: Math.random() * 100,
+                y: Math.random() * 100
+            },
+            delay: Math.random() * 5,
+            duration: Math.random() * 3 + 4,
+            size: Math.random() * 30 + 25,
+            color: [
+                'text-red-500',
+                'text-green-500',
+                'text-yellow-500',
+                'text-purple-500'
+            ][Math.floor(Math.random() * 4)]
+        }));
+        
+        // Generate horizontal lines
+        const horizontalLines = [...Array(8)].map((_, i) => ({
+            id: i,
+            delay: i * 2,
+            position: Math.random() * 100
+        }));
+        
+        // Generate vertical lines
+        const verticalLines = [...Array(8)].map((_, i) => ({
+            id: i,
+            delay: i * 2,
+            position: Math.random() * 100
+        }));
+        
+        // Generate grid points
+        const gridPoints = [...Array(144)].map((_, i) => ({
+            id: i,
+            animationDuration: Math.random() * 2 + 2
+        }));
+        
+        // Set all generated elements to state
+        setElements({
+            crosses,
+            horizontalLines,
+            verticalLines,
+            gridPoints
+        });
+    }, []); // Empty dependency array means this runs once on mount
 
     return (
         <>
-            <style jsx>{`
+            <style jsx="true">{`
                 @keyframes float {
                     0% {
                         transform: translateY(20px) scale(0.9);
@@ -71,17 +119,14 @@ const AnimatedBackground = () => {
                         opacity: 0.2;
                     }
                 }
-
                 @keyframes slideX {
                     from { transform: translateX(-100%); }
                     to { transform: translateX(100%); }
                 }
-
                 @keyframes slideY {
                     from { transform: translateY(-100%); }
                     to { transform: translateY(100%); }
                 }
-
                 @keyframes pulse {
                     0%, 100% { 
                         transform: scale(1);
@@ -93,18 +138,28 @@ const AnimatedBackground = () => {
                     }
                 }
             `}</style>
-
             <div className="absolute inset-0 overflow-hidden">
-                {/* Sliding Lines */}
-                {[...Array(8)].map((_, i) => (
-                    <SlidingLine key={`h-${i}`} delay={i * 2} />
+                {/* Sliding Lines - Horizontal */}
+                {elements.horizontalLines.map(line => (
+                    <SlidingLine 
+                        key={`h-${line.id}`} 
+                        delay={line.delay} 
+                        position={line.position} 
+                    />
                 ))}
-                {[...Array(8)].map((_, i) => (
-                    <SlidingLine key={`v-${i}`} vertical delay={i * 2} />
+                
+                {/* Sliding Lines - Vertical */}
+                {elements.verticalLines.map(line => (
+                    <SlidingLine 
+                        key={`v-${line.id}`} 
+                        vertical 
+                        delay={line.delay} 
+                        position={line.position}
+                    />
                 ))}
-
+                
                 {/* Medical Crosses */}
-                {crosses.map(cross => (
+                {elements.crosses.map(cross => (
                     <MedicalCross
                         key={cross.id}
                         position={cross.position}
@@ -114,16 +169,13 @@ const AnimatedBackground = () => {
                         color={cross.color}
                     />
                 ))}
-
+                
                 {/* Grid Points */}
                 <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-8">
-                    {[...Array(144)].map((_, i) => (
-                        <div
-                            key={i}
-                            className="w-2 h-2 bg-gray-400/30 rounded-full"
-                            style={{
-                                animation: `pulse ${Math.random() * 2 + 2}s ease-in-out infinite`
-                            }}
+                    {elements.gridPoints.map(point => (
+                        <GridPoint
+                            key={point.id}
+                            animationDuration={point.animationDuration}
                         />
                     ))}
                 </div>
@@ -132,5 +184,5 @@ const AnimatedBackground = () => {
     );
 };
 
-export default AnimatedBackground;
-
+// Export a memoized version of the component to prevent unnecessary re-renders
+export default React.memo(AnimatedBackground);

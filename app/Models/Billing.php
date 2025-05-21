@@ -29,11 +29,11 @@ class Billing extends Model
     ];
 
 
-    public static $statuses = [
-        'pending',
-        'paid',
-        'cancelled'
-    ];
+    // public static $statuses = [
+    //     'pending',
+    //     'paid',
+    //     'cancelled'
+    // ];
 
     public function admission(): BelongsTo
     {

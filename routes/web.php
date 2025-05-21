@@ -30,5 +30,7 @@ Route::get('/p/{hash}', [PatientPortalController::class, 'show'])->name('patient
 Route::get('/billing/soa/{id}/download', [BillingController::class, 'downloadSOA'])->name('billing.soa.download');
 Route::get('/billing/progress/{id}/download', [BillingController::class, 'downloadProgressBill'])->name('billing.progress.download');
 Route::get('/patients/{patient}', [PatientController::class, 'show'])->name('patients.show');
+Route::get('/billing/pdf/{billing}', [BillingController::class, 'showPdf'])
+    ->name('billing.pdf.show');
 
 // Add other routes as needed for your application

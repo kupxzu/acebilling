@@ -526,17 +526,27 @@ class BillingController extends Controller
     {
         try {
             $request->validate([
-                'pdf_file' => 'required|mimes:pdf|max:10240', // max 10MB
+                'pdf_file' => 'required|mimes:pdf|max:10240',
                 'admission_id' => 'required|exists:admissions,id',
                 'description' => 'required|string',
                 'amount' => 'required|numeric|min:0'
             ]);
 
             $file = $request->file('pdf_file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
+            $fileName = time() . '_SOA-' . $request->admission_id . '.pdf';
+            
+            // Ensure directory exists
+            $directory = 'public/billing_pdfs';
+            if (!Storage::exists($directory)) {
+                Storage::makeDirectory($directory);
+            }
             
             // Store the file
-            $path = $file->storeAs('billing_pdfs', $fileName, 'public');
+            $path = Storage::putFileAs(
+                'public/billing_pdfs',
+                $file,
+                $fileName
+            );
 
             // Create billing record with PDF
             $billing = Billing::create([
@@ -545,21 +555,24 @@ class BillingController extends Controller
                 'amount' => $request->amount,
                 'total_amount' => $request->amount,
                 'pdf_file' => $fileName,
-                'pdf_path' => $path,
+                'pdf_path' => str_replace('public/', '', $path), // Remove 'public/' from path
                 'pdf_original_name' => $file->getClientOriginalName()
             ]);
 
             return response()->json([
                 'status' => true,
                 'message' => 'PDF uploaded successfully',
-                'data' => $billing
+                'data' => [
+                    'billing' => $billing,
+                    'pdf_url' => Storage::url($path)
+                ]
             ]);
 
         } catch (\Exception $e) {
             \Log::error('PDF upload failed: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
-                'message' => 'Failed to upload PDF'
+                'message' => 'Failed to upload PDF: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -588,35 +601,14 @@ class BillingController extends Controller
         }
     }
 
-    public function showPdf($id)
+    public function showPdf(Billing $billing)
     {
-        try {
-            // Get billing with relationships
-            $billing = Billing::with(['admission.patient'])->findOrFail($id);
-
-            if (!$billing->admission) {
-                throw new \Exception('No admission record found for this billing');
-            }
-
-            // Check if PDF exists
-            if (!Storage::exists($billing->pdf_path)) {
-                throw new \Exception('PDF file not found');
-            }
-
-            // Format the data
-            $data = [
-                'billing' => $billing,
-                'patient' => $billing->admission->patient,
-                'admission' => $billing->admission,
-                'billDate' => $billing->created_at ? $billing->created_at->format('M d, Y') : 'N/A'
-            ];
-
-            return view('portal.show-pdf', $data);
-
-        } catch (\Exception $e) {
-            \Log::error('Error showing PDF: ' . $e->getMessage());
-            return back()->with('error', 'Unable to display billing information');
+        if (!$billing->pdf_path || !Storage::disk('public')->exists($billing->pdf_path)) {
+            abort(404);
         }
+        
+        $path = storage_path('app/public/' . $billing->pdf_path);
+        return response()->file($path);
     }
 
     public function showPublic($id)

@@ -36,6 +36,12 @@ const ViewPatient = () => {
         }
     }, [id]);
 
+    // Helper function to safely format the ward type
+    const formatWardType = (wardType) => {
+        if (!wardType) return 'N/A';
+        return wardType.charAt(0).toUpperCase() + wardType.slice(1);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
             <Navbar />
@@ -59,10 +65,11 @@ const ViewPatient = () => {
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                                    {patient?.first_name} {patient?.last_name}
+                                    {patient?.first_name || ''} {patient?.last_name || ''}
                                 </h1>
                                 <p className="text-indigo-600 font-medium">
-                                    Room {patient?.room_number} • {patient?.ward_type?.charAt(0).toUpperCase() + patient?.ward_type?.slice(1)} Ward
+                                    Room {patient?.room_number || 'N/A'} 
+                                    {patient?.ward_type ? ` • ${formatWardType(patient.ward_type)} Ward` : ''}
                                 </p>
                             </div>
                             <div className="flex gap-3">
@@ -102,17 +109,19 @@ const ViewPatient = () => {
                             <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
                                 <h2 className="text-2xl font-semibold text-gray-800 mb-6 pb-4 border-b border-gray-100">Patient Information</h2>
                                 <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                                    <InfoItem label="First Name" value={patient.first_name} />
-                                    <InfoItem label="Last Name" value={patient.last_name} />
+                                    <InfoItem label="First Name" value={patient.first_name || 'N/A'} />
+                                    <InfoItem label="Last Name" value={patient.last_name || 'N/A'} />
                                     <InfoItem label="Middle Name" value={patient.middle_name || 'N/A'} />
                                     <InfoItem label="Name Initial" value={patient.name_initial || 'N/A'} />
                                     <InfoItem 
                                         label="Date of Birth" 
-                                        value={new Date(patient.date_of_birth).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
+                                        value={patient.date_of_birth ? 
+                                            new Date(patient.date_of_birth).toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            }) : 'N/A'
+                                        }
                                         icon={
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
@@ -121,7 +130,7 @@ const ViewPatient = () => {
                                     />
                                     <InfoItem 
                                         label="Room Number" 
-                                        value={patient.room_number}
+                                        value={patient.room_number || 'N/A'}
                                         icon={
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                                                 <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
@@ -130,12 +139,12 @@ const ViewPatient = () => {
                                     />
                                     <InfoItem 
                                         label="Ward Type" 
-                                        value={patient.ward_type.charAt(0).toUpperCase() + patient.ward_type.slice(1)}
-                                        highlightColor={getWardColor(patient.ward_type)}
+                                        value={patient.ward_type ? formatWardType(patient.ward_type) : 'N/A'}
+                                        highlightColor={patient.ward_type ? getWardColor(patient.ward_type) : null}
                                     />
                                     <InfoItem 
                                         label="Attending Physician" 
-                                        value={patient.attending_physician}
+                                        value={patient.attending_physician || 'N/A'}
                                         icon={
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
@@ -177,6 +186,8 @@ const InfoItem = ({ label, value, icon, highlightColor }) => {
 
 // Helper function to get appropriate color for ward type
 const getWardColor = (wardType) => {
+    if (!wardType) return 'bg-gray-100 text-gray-800';
+    
     const wardColors = {
         'private': 'bg-green-100 text-green-800',
         'semi-private': 'bg-blue-100 text-blue-800',
@@ -189,6 +200,3 @@ const getWardColor = (wardType) => {
 };
 
 export default ViewPatient;
-
-
-

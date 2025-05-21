@@ -30,6 +30,7 @@ import NotFound from './components/common/NotFound';
 import AdminDashboard from './components/admin/AdminDashboard';
 import CreateAdmin from './components/admin/CreateAdmin';
 
+
 // Route configurations
 const authRoutes = [
   {

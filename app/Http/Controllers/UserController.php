@@ -89,9 +89,13 @@ class UserController extends Controller
      */
     public function login(Request $request)
     {
-        Log::debug('Login attempt', ['email' => $request->email]);
+        Log::debug('Login attempt started', [
+            'email' => $request->email,
+            'remember' => $request->boolean('remember', false)
+        ]);
         
         try {
+            // 1. Validate input
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email',
                 'password' => 'required',
@@ -99,6 +103,9 @@ class UserController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::warning('Login validation failed', [
+                    'errors' => $validator->errors()->toArray()
+                ]);
                 return response()->json([
                     'status' => false,
                     'message' => 'Validation Error',
@@ -106,32 +113,45 @@ class UserController extends Controller
                 ], 422);
             }
 
+            // 2. Find user and verify credentials
             $user = User::where('email', $request->email)->first();
             
             if (!$user || !Hash::check($request->password, $user->password)) {
-                Log::debug('Authentication failed - invalid credentials');
+                Log::warning('Login failed - invalid credentials', ['email' => $request->email]);
                 return response()->json([
                     'status' => false,
                     'message' => 'Invalid login credentials'
                 ], 401);
             }
-            
-            // Revoke all existing tokens
+
+            // 3. Handle token management
+            Log::debug('Revoking existing tokens');
             $user->tokens()->delete();
             
-            // Set token expiration based on remember me
+            // 4. Set up new authentication
             $remember = $request->boolean('remember', false);
             $expiration = $remember ? now()->addDays(30) : now()->addHours(12);
             
-            // Create new token
+            Log::debug('Creating new token', [
+                'user_id' => $user->id,
+                'remember' => $remember,
+                'expiration' => $expiration
+            ]);
+
+            // Create token with proper expiration
             $token = $user->createToken('auth_token')->plainTextToken;
 
-            Log::debug('Login successful', [
+            // Hide sensitive data
+            $user->makeVisible(['name', 'email', 'role']);
+            $user->makeHidden(['password', 'remember_token']);
+
+            Log::info('Login successful', [
                 'user_id' => $user->id,
                 'role' => $user->role,
                 'remember' => $remember
             ]);
 
+            // 5. Return success response
             return response()->json([
                 'status' => true,
                 'message' => 'Login successful',
@@ -143,13 +163,14 @@ class UserController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Login exception', [
+                'email' => $request->email ?? 'not provided',
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
                 'status' => false,
-                'message' => 'Login failed',
+                'message' => 'Login failed. Please try again.',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -260,7 +281,7 @@ class UserController extends Controller
             // Create reset URL
             $frontendUrl = config('app.frontend_url');
             if (!$frontendUrl) {
-                $frontendUrl = 'http://172.16.2.196:8080'; // Fallback URL
+                $frontendUrl = 'http://billing.api'; // Fallback URL
                 Log::warning('APP_FRONTEND_URL not configured, using fallback');
             }
             

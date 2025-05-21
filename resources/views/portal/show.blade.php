@@ -195,34 +195,76 @@
 
             <div class="p-6">
                 @if($billings->count() > 0)
-                    <!-- PDF Preview Container -->
-                    {{-- <div class="mb-4 flex justify-end">
-                        <a href="{{ Storage::url($billings->first()->pdf_path) }}" 
-                           download
-                           class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                            </svg>
-                            Download PDF
-                        </a>
-                    </div> --}}
                     <div class="w-full h-[800px] border border-gray-200 rounded-lg overflow-hidden">
-                        @foreach($billings as $billing)
-                            @if($billing->pdf_path)
-                                <iframe 
-                                    src="{{ Storage::url($billing->pdf_path) }}"
-                                    class="w-full h-full"
+                        @php
+                            $pdfFound = false;
+                            $pdfUrl = '';
+                            $currentBilling = null;
+                            
+                            foreach($billings as $billing) {
+                                if ($billing->pdf_path && Storage::disk('public')->exists($billing->pdf_path)) {
+                                    $pdfFound = true;
+                                    $currentBilling = $billing;
+                                    $pdfUrl = route('billing.pdf.show', $billing->id);
+                                    break;
+                                }
+                            }
+                        @endphp
+
+                        @if($pdfFound)
+                            <div class="relative w-full h-full">
+                                <object 
+                                    data="{{ $pdfUrl }}"
                                     type="application/pdf"
-                                    frameborder="0">
-                                </iframe>
-                                @break
-                            @endif
-                        @endforeach
+                                    width="100%"
+                                    height="100%"
+                                    class="w-full h-full"
+                                    onerror="this.style.display='none'; document.getElementById('pdfError').style.display='flex';"
+                                >
+                                    <div id="pdfError" 
+                                         class="absolute inset-0 flex flex-col items-center justify-center bg-gray-50"
+                                         style="display: none;">
+                                        <div class="text-center p-8">
+                                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                            <h3 class="mt-2 text-sm font-medium text-gray-900">Unable to display PDF</h3>
+                                            <p class="mt-1 text-sm text-gray-500">Try opening the file directly</p>
+                                            <div class="mt-6 space-x-3">
+                                                <a href="{{ $pdfUrl }}" 
+                                                   target="_blank"
+                                                   class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                                    </svg>
+                                                    Open in New Tab
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </object>
+                            </div>
+                        @else
+                            <!-- No PDF Found Message -->
+                            <div class="flex flex-col items-center justify-center h-full bg-gray-50">
+                                <div class="text-center p-8">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                    <h3 class="mt-2 text-sm font-medium text-gray-900">PDF Not Available</h3>
+                                    <p class="mt-1 text-sm text-gray-500">The PDF file could not be found</p>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 @else
                     <div class="text-center py-12">
                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                         </svg>
                         <p class="mt-4 text-gray-500">No bill available yet</p>
                     </div>
