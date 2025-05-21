@@ -35,45 +35,127 @@ class BillingController extends Controller
         ]);
     }
 
-    public function getDashboardStats()
-    {
-        try {
-            // Get ward distribution
-            $wardDistribution = Admission::where('status', 'active')
-                ->selectRaw('ward_type, COUNT(*) as count')
-                ->groupBy('ward_type')
-                ->get()
-                ->mapWithKeys(function ($item) {
-                    $key = str_replace('-', '', lcfirst(ucwords($item->ward_type, '-')));
-                    return [$key => $item->count];
-                })
-                ->toArray();
+public function getDashboardStats(Request $request)
+{
+    try {
+        $timeRange = $request->query('range', 'today');
+        $now = now();
 
-            // Get total amount from billings
-            $totalAmount = Billing::sum('total_amount');
+        // Define date range based on selected filter
+        $startDate = match($timeRange) {
+            'week' => $now->copy()->startOfWeek(),
+            'month' => $now->copy()->startOfMonth(),
+            'year' => $now->copy()->startOfYear(),
+            default => $now->copy()->startOfDay(),
+        };
 
-            return response()->json([
-                'status' => true,
-                'data' => [
-                    'totalAmount' => $totalAmount,
-                    'wardDistribution' => [
-                        'private' => $wardDistribution['private'] ?? 0,
-                        'semiPrivate' => $wardDistribution['semiPrivate'] ?? 0,
-                        'ward' => $wardDistribution['ward'] ?? 0,
-                        'executive' => $wardDistribution['executive'] ?? 0,
-                        'suite' => $wardDistribution['suite'] ?? 0,
+        // Get previous period for comparison
+        $previousStart = match($timeRange) {
+            'week' => $now->copy()->subWeek()->startOfWeek(),
+            'month' => $now->copy()->subMonth()->startOfMonth(),
+            'year' => $now->copy()->subYear()->startOfYear(),
+            default => $now->copy()->subDay()->startOfDay(),
+        };
+        $previousEnd = $startDate;
+
+        // Fix the ward statistics query
+        $wardStats = \DB::table('admissions AS a')
+            ->where('a.status', 'active')
+            ->select('a.ward_type')
+            ->selectRaw('COUNT(*) as patient_count')
+            ->selectRaw('COALESCE((SELECT SUM(b.amount) FROM billings b JOIN admissions adm ON b.admission_id = adm.id WHERE adm.ward_type = a.ward_type), 0) as revenue')
+            ->groupBy('a.ward_type')
+            ->get()
+            ->mapWithKeys(function ($item) {
+                $key = str_replace('-', '', lcfirst(ucwords($item->ward_type, '-')));
+                return [
+                    $key => [
+                        'patients' => (int)$item->patient_count,
+                        'revenue' => (float)$item->revenue
                     ]
-                ]
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Dashboard Stats Error: ' . $e->getMessage());
-            return response()->json([
-                'status' => false,
-                'message' => 'Failed to fetch dashboard statistics',
-                'error' => config('app.debug') ? $e->getMessage() : null
-            ], 500);
-        }
+                ];
+            });
+
+        // Default ward types if none found
+        $defaultWards = [
+            'private' => ['patients' => 0, 'revenue' => 0],
+            'semiPrivate' => ['patients' => 0, 'revenue' => 0],
+            'ward' => ['patients' => 0, 'revenue' => 0],
+            'executive' => ['patients' => 0, 'revenue' => 0],
+            'suite' => ['patients' => 0, 'revenue' => 0]
+        ];
+
+        // Merge with defaults to ensure all ward types exist
+        $wardStats = collect($defaultWards)->merge($wardStats);
+
+        // Get income data for the period
+        $incomeData = Billing::where('created_at', '>=', $startDate)
+            ->selectRaw('DATE(created_at) as date')
+            ->selectRaw('COALESCE(SUM(amount), 0) as amount')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'date' => $item->date,
+                    'amount' => (float)$item->amount
+                ];
+            });
+
+        // Calculate previous period revenue
+        $previousPeriodIncome = Billing::whereBetween('created_at', [$previousStart, $previousEnd])
+            ->sum('amount') ?? 0;
+
+        // Calculate totals
+        $totalPatients = $wardStats->sum('patients');
+        $totalRevenue = $incomeData->sum('amount');
+        $averageDaily = $incomeData->count() > 0 ? $totalRevenue / $incomeData->count() : 0;
+        $revenuePerPatient = $totalPatients > 0 ? $totalRevenue / $totalPatients : 0;
+
+        // Find most profitable ward
+        $mostProfitableWard = $wardStats
+            ->sortByDesc(function ($stats) {
+                return $stats['revenue'] ?? 0;
+            })
+            ->keys()
+            ->first() ?? '';
+
+        return response()->json([
+            'status' => true,
+            'data' => [
+                'summary' => [
+                    'totalAmount' => (float)$totalRevenue,
+                    'averageDaily' => (float)$averageDaily,
+                    'totalPatients' => (int)$totalPatients,
+                    'revenuePerPatient' => (float)$revenuePerPatient,
+                    'mostProfitableWard' => (string)$mostProfitableWard
+                ],
+                'wardDistribution' => $wardStats->toArray(),
+                'incomeData' => $incomeData->toArray(),
+                'patientCount' => $wardStats->map(fn($stats) => (int)$stats['patients'])->toArray(),
+                'previousPeriodIncome' => (float)$previousPeriodIncome
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Dashboard Stats Error: ' . $e->getMessage(), [
+            'trace' => $e->getTraceAsString(),
+            'time_range' => $timeRange ?? 'unknown',
+            'request' => $request->all()
+        ]);
+        
+        return response()->json([
+            'status' => false,
+            'message' => 'Failed to fetch dashboard statistics',
+            'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+            'debug' => config('app.debug') ? [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ] : null
+        ], 500);
     }
+}
 
     public function getSOA($id)
     {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../utils/axios'; // Ensure this is your configured axios instance
 import Navbar from '../Navbar'; // Assuming this path is correct
@@ -347,6 +347,8 @@ const PatientBills = () => {
         recentTransactions: []
     });
 
+    const intervalRef = useRef(null);
+
     const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
 
     const customSelectStyles = {
@@ -374,23 +376,34 @@ const PatientBills = () => {
         try {
             const response = await axiosClient.get('/billing/active-patients');
             if (response.data?.data) {
-                const formattedPatients = response.data.data.map(patient => {
-                    if (!patient.patient_id || !patient.admission_id) {
-                        console.warn("Patient data missing patient_id or admission_id:", patient);
-                        return null;
-                    }
-                    const lastName = patient.last_name || '';
-                    const firstName = patient.first_name || '';
-                    const middleInitial = patient.middle_name ? ` ${patient.middle_name.charAt(0)}.` : '';
-                    const fullName = `${lastName}, ${firstName}${middleInitial}`.trim() || `Patient ID: ${patient.patient_id}`;
-                    return {
-                        value: patient.patient_id,
-                        label: fullName,
-                        patientData: { ...patient, fullNameForDisplay: fullName }
-                    };
-                }).filter(p => p !== null);
+                const formattedPatients = response.data.data
+                    .map(patient => {
+                        if (!patient.patient_id || !patient.admission_id) {
+                            console.warn("Patient data missing patient_id or admission_id:", patient);
+                            return null;
+                        }
+                        const lastName = patient.last_name || '';
+                        const firstName = patient.first_name || '';
+                        const middleInitial = patient.middle_name ? ` ${patient.middle_name.charAt(0)}.` : '';
+                        const fullName = `${lastName}, ${firstName}${middleInitial}`.trim() || `Patient ID: ${patient.patient_id}`;
+                        return {
+                            value: patient.patient_id,
+                            label: fullName,
+                            patientData: { 
+                                ...patient, 
+                                fullNameForDisplay: fullName,
+                                admission_date: new Date(patient.admission_date || Date.now())
+                            }
+                        };
+                    })
+                    .filter(p => p !== null)
+                    // Sort by admission date (most recent first)
+                    .sort((a, b) => b.patientData.admission_date - a.patientData.admission_date);
+
                 updateState({ patients: formattedPatients, loadingPatients: false });
-            } else { throw new Error('Invalid response format for active patients'); }
+            } else { 
+                throw new Error('Invalid response format for active patients'); 
+            }
         } catch (err) {
             console.error('Error fetching active patients:', err);
             const errorMessage = err.response?.data?.message || err.message || 'Failed to load active patients.';
@@ -487,6 +500,109 @@ const PatientBills = () => {
         fetchActivePatients();
     }, [fetchActivePatients]);
 
+    useEffect(() => {
+        const pollData = async () => {
+            try {
+                const response = await axiosClient.get('/billing/active-patients');
+                if (response.data?.data) {
+                    const formattedPatients = response.data.data
+                        .map(patient => {
+                            if (!patient.patient_id || !patient.admission_id) return null;
+                            const lastName = patient.last_name || '';
+                            const firstName = patient.first_name || '';
+                            const middleInitial = patient.middle_name ? ` ${patient.middle_name.charAt(0)}.` : '';
+                            const fullName = `${lastName}, ${firstName}${middleInitial}`.trim() || `Patient ID: ${patient.patient_id}`;
+                            return {
+                                value: patient.patient_id,
+                                label: fullName,
+                                patientData: { ...patient, fullNameForDisplay: fullName }
+                            };
+                        })
+                        .filter(p => p !== null);
+
+                    updateState({ patients: formattedPatients });
+
+                    // If there's a selected patient, update their transactions
+                    if (state.selectedPatient?.value) {
+                        const transactionsRes = await axiosClient.get(`/billing/transactions/${state.selectedPatient.value}`);
+                        if (transactionsRes.data?.data) {
+                            updateState({ recentTransactions: transactionsRes.data.data });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+                // Don't show error toasts during polling to avoid spam
+            }
+        };
+
+        // Clear any existing interval
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+        }
+
+        // Initial poll
+        pollData();
+
+        // Set up new interval
+        intervalRef.current = setInterval(pollData, 5000);
+
+        // Cleanup function
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+    }, [state.selectedPatient]);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                // Clear interval when tab is not visible
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+            } else {
+                // Restart polling when tab becomes visible
+                if (!intervalRef.current) {
+                    intervalRef.current = setInterval(async () => {
+                        const response = await axiosClient.get('/billing/active-patients');
+                        if (response.data?.data) {
+                            const formattedPatients = response.data.data
+                                .map(patient => {
+                                    if (!patient.patient_id || !patient.admission_id) return null;
+                                    const lastName = patient.last_name || '';
+                                    const firstName = patient.first_name || '';
+                                    const middleInitial = patient.middle_name ? ` ${patient.middle_name.charAt(0)}.` : '';
+                                    const fullName = `${lastName}, ${firstName}${middleInitial}`.trim() || `Patient ID: ${patient.patient_id}`;
+                                    return {
+                                        value: patient.patient_id,
+                                        label: fullName,
+                                        patientData: { ...patient, fullNameForDisplay: fullName }
+                                    };
+                                })
+                                .filter(p => p !== null);
+
+                            updateState({ patients: formattedPatients });
+                        }
+                    }, 5000);
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
+    }, []);
+
     const {
         loadingPatients, loadingDetails, error, patients,
         selectedPatient, patientDetails, billAmount, recentTransactions
@@ -529,26 +645,38 @@ const PatientBills = () => {
                             formatOptionLabel={(option, { context }) => {
                                 if (context === 'menu') {
                                     return (
-                                        <div>
-                                            <span className="font-medium">{option.label}</span>
-                                            <span className="block text-xs text-gray-500 mt-0.5">
-                                                DOB: {formatDate(option.patientData?.date_of_birth)} | Patient ID: {option.value}
-                                            </span>
-                                            <span className="block text-xs text-gray-500 mt-0.5">
-                                                Admission ID: {option.patientData?.admission_id}
-                                            </span>
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="font-medium">{option.label}</span>
+                                                <span className="block text-xs text-gray-500 mt-0.5">
+                                                    DOB: {formatDate(option.patientData?.date_of_birth)} | Patient ID: {option.value}
+                                                </span>
+                                                <span className="block text-xs text-gray-500 mt-0.5">
+                                                    Admission ID: {option.patientData?.admission_id}
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-xs text-indigo-600 font-medium">
+                                                    Admitted: {formatDate(option.patientData?.admission_date)}
+                                                </span>
+                                            </div>
                                         </div>
                                     );
-                                } return option.label;
+                                }
+                                return option.label;
                             }}
-                            noOptionsMessage={({ inputValue }) => loadingPatients ? "Loading..." : (inputValue ? "No patients found" : "Type to search...")}
+                            noOptionsMessage={({ inputValue }) => 
+                                loadingPatients 
+                                    ? "Loading..." 
+                                    : (inputValue ? "No patients found" : "Type to search...")}
                             filterOption={(option, input) => {
                                 if (!input && !loadingPatients) return true;
                                 const searchStr = input.toLowerCase();
                                 const labelMatch = option.label.toLowerCase().includes(searchStr);
                                 const patientIdMatch = String(option.value).toLowerCase().includes(searchStr);
                                 const admissionIdMatch = String(option.patientData?.admission_id).toLowerCase().includes(searchStr);
-                                return labelMatch || patientIdMatch || admissionIdMatch;
+                                const admissionDateMatch = formatDate(option.patientData?.admission_date).toLowerCase().includes(searchStr);
+                                return labelMatch || patientIdMatch || admissionIdMatch || admissionDateMatch;
                             }}
                         />
                     </div>
